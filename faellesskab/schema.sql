@@ -1,5 +1,5 @@
 -- =====================================================================
---  GetTogether Fællesskab – Supabase database (produktion v2: venner, grupper, opkald)
+--  GetTogether Fællesskab – Supabase database (v3: venner, grupper, opkald, kaldenavn-login, AI-tjek, moderatorer)
 --  Kør HELE filen i Supabase → SQL Editor → "Run".
 --  Filen kan køres igen uden at slette data (fx efter opdateringer).
 -- =====================================================================
@@ -598,6 +598,306 @@ do $$ begin alter publication supabase_realtime add table public.group_messages;
 do $$ begin alter publication supabase_realtime add table public.groups;         exception when duplicate_object then null; end $$;
 do $$ begin alter publication supabase_realtime add table public.calls;          exception when duplicate_object then null; end $$;
 
+-- =====================================================================
+--  v3: LOGIN MED KALDENAVN + KODE, AI-TJEK AF PROFILER, MODERATORER
+-- =====================================================================
+create extension if not exists pgcrypto with schema extensions;
+
+-- ---------- Roller, AI-status og pause på profiler ----------
+alter table public.profiles add column if not exists role text not null default 'member';
+alter table public.profiles drop constraint if exists profiles_role_check;
+alter table public.profiles add constraint profiles_role_check check (role in ('member','moderator','admin'));
+update public.profiles set role = 'admin' where is_admin and role = 'member';
+
+alter table public.profiles add column if not exists ai_status text not null default 'ok';
+alter table public.profiles drop constraint if exists profiles_ai_status_check;
+alter table public.profiles add constraint profiles_ai_status_check check (ai_status in ('pending','ok','review','blocked'));
+alter table public.profiles add column if not exists ai_reason text;
+alter table public.profiles add column if not exists ai_checked_at timestamptz;
+alter table public.profiles add column if not exists muted_until timestamptz;
+alter table public.profiles add column if not exists muted_reason text;
+
+-- ---------- Indstillinger (én række) ----------
+create table if not exists public.app_settings (
+  id               int primary key default 1 check (id = 1),
+  ai_profile_check boolean not null default false,
+  updated_at       timestamptz not null default now()
+);
+insert into public.app_settings (id) values (1) on conflict (id) do nothing;
+
+-- ---------- Opslag fra moderatorer (vises på alles forside) ----------
+create table if not exists public.announcements (
+  id         bigint generated always as identity primary key,
+  author     uuid default auth.uid() references public.profiles(id) on delete set null,
+  title      text not null check (char_length(title) between 2 and 80),
+  body       text not null check (char_length(body) between 1 and 1000),
+  created_at timestamptz not null default now()
+);
+create index if not exists announcements_created_idx on public.announcements (created_at desc);
+
+-- ---------- Log over alt, moderatorer og admin gør ----------
+create table if not exists public.mod_log (
+  id         bigint generated always as identity primary key,
+  actor      uuid references public.profiles(id) on delete set null,
+  action     text not null,
+  target     uuid references public.profiles(id) on delete set null,
+  detail     text,
+  created_at timestamptz not null default now()
+);
+create index if not exists mod_log_created_idx on public.mod_log (created_at desc);
+
+-- AI-tjekket opretter sager uden en menneskelig afsender
+alter table public.reports alter column reporter drop not null;
+
+-- ---------- Hjælpefunktioner ----------
+create or replace function public.is_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select role = 'admin' and not banned from profiles where id = auth.uid()), false)
+$$;
+
+create or replace function public.is_mod() returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select role in ('moderator','admin') and not banned from profiles where id = auth.uid()), false)
+$$;
+
+-- Aktiv = må skrive: ikke udelukket, ikke på pause, og profilen er godkendt (eller til gennemsyn)
+create or replace function public.is_active() returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select not banned
+                          and ai_status in ('ok','review')
+                          and (muted_until is null or muted_until <= now())
+                   from profiles where id = auth.uid()), false)
+$$;
+
+create or replace function public.ai_check_on() returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select ai_profile_check from app_settings where id = 1), false)
+$$;
+
+-- Brugeren kan ikke selv ændre rolle, køn, kaldenavn (= login), udelukkelse, pause eller AI-status
+create or replace function public.protect_profile() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  new.is_admin := new.role = 'admin';
+  if auth.uid() is null or coalesce(current_setting('gt.trusted', true), '') = 'on' then
+    return new;  -- SQL Editor / service role (AI-tjekket) / moderator-funktionerne herunder
+  end if;
+  if tg_op = 'INSERT' then
+    new.role := 'member'; new.is_admin := false;
+    new.banned := false; new.banned_reason := null;
+    new.muted_until := null; new.muted_reason := null;
+    new.ai_status := case when public.ai_check_on() then 'pending' else 'ok' end;
+    new.ai_reason := null; new.ai_checked_at := null;
+    new.privacy_consent_at := coalesce(new.privacy_consent_at, now());
+    return new;
+  end if;
+  if public.is_admin() and old.id <> auth.uid() then
+    return new;  -- admin retter andres profil
+  end if;
+  new.role := old.role; new.is_admin := old.is_admin;
+  new.gender := old.gender; new.nickname := old.nickname;
+  new.banned := old.banned; new.banned_reason := old.banned_reason;
+  new.muted_until := old.muted_until; new.muted_reason := old.muted_reason;
+  new.privacy_consent_at := old.privacy_consent_at;
+  new.ai_status := old.ai_status; new.ai_reason := old.ai_reason; new.ai_checked_at := old.ai_checked_at;
+  -- ny tekst på profilen skal tjekkes igen (ikke for moderatorer og admin)
+  if public.ai_check_on() and old.role = 'member'
+     and (new.bio is distinct from old.bio or new.city is distinct from old.city or new.interests is distinct from old.interests) then
+    new.ai_status := 'pending'; new.ai_reason := null;
+  end if;
+  return new;
+end $$;
+
+-- Rapporter: også fra AI-tjekket (uden afsender) og klager over en blokering
+create or replace function public.report_snapshot() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  new.reporter := auth.uid();
+  new.status := 'ny';
+  if new.kind = 'message' then
+    select body, user_id into new.snapshot, new.target_user from messages where id = new.target_id::bigint;
+  elsif new.kind = 'dm' then
+    select body, sender into new.snapshot, new.target_user
+      from direct_messages where id = new.target_id::bigint and auth.uid() in (sender, recipient);
+  elsif new.kind = 'gmessage' then
+    select body, user_id into new.snapshot, new.target_user
+      from group_messages where id = new.target_id::bigint and public.is_member(group_id);
+  elsif new.kind = 'profile' then
+    new.target_user := new.target_id::uuid;
+    select nickname || ' – ' || coalesce(bio, '') into new.snapshot from profiles where id = new.target_id::uuid;
+  end if;
+  if auth.uid() is not null
+     and (select count(*) from reports where reporter = auth.uid() and created_at > now() - interval '1 hour') >= 20 then
+    raise exception 'For mange rapporter – prøv igen senere.';
+  end if;
+  return new;
+end $$;
+
+create or replace function public.log_mod(p_action text, p_target uuid, p_detail text) returns void
+language sql security definer set search_path = public as $$
+  insert into mod_log (actor, action, target, detail) values (auth.uid(), p_action, p_target, left(p_detail, 500))
+$$;
+revoke all on function public.log_mod(text, uuid, text) from public, anon, authenticated;
+
+-- ---------- Moderator-handlinger ----------
+create or replace function public.mod_review_profile(p_target uuid, p_approve boolean, p_reason text default null)
+returns void language plpgsql security definer set search_path = public as $$
+declare t profiles;
+begin
+  if not public.is_mod() then raise exception 'Kun moderatorer.'; end if;
+  select * into t from profiles where id = p_target;
+  if t.id is null then raise exception 'Profilen findes ikke.'; end if;
+  if t.role <> 'member' and not public.is_admin() then raise exception 'Du kan ikke ændre en anden moderator.'; end if;
+  perform set_config('gt.trusted', 'on', true);
+  update profiles set ai_status = case when p_approve then 'ok' else 'blocked' end,
+                      ai_reason = case when p_approve then null else coalesce(nullif(trim(p_reason), ''), 'Stoppet af en moderator') end,
+                      ai_checked_at = now()
+   where id = p_target;
+  perform set_config('gt.trusted', 'off', true);
+  update reports set status = 'løst' where kind = 'profile' and target_id = p_target::text and status = 'ny';
+  perform public.log_mod(case when p_approve then 'godkendte profil' else 'stoppede profil' end, p_target, p_reason);
+end $$;
+
+create or replace function public.mod_mute(p_target uuid, p_hours int, p_reason text default null)
+returns void language plpgsql security definer set search_path = public as $$
+declare t profiles;
+begin
+  if not public.is_mod() then raise exception 'Kun moderatorer.'; end if;
+  if p_hours < 0 or p_hours > 168 then raise exception 'En pause kan højst vare 7 dage.'; end if;
+  select * into t from profiles where id = p_target;
+  if t.id is null then raise exception 'Profilen findes ikke.'; end if;
+  if t.role <> 'member' and not public.is_admin() then raise exception 'Du kan ikke give en moderator pause.'; end if;
+  perform set_config('gt.trusted', 'on', true);
+  update profiles set muted_until = case when p_hours = 0 then null else now() + make_interval(hours => p_hours) end,
+                      muted_reason = case when p_hours = 0 then null else nullif(trim(p_reason), '') end
+   where id = p_target;
+  perform set_config('gt.trusted', 'off', true);
+  perform public.log_mod(case when p_hours = 0 then 'ophævede pause' else 'gav pause (' || p_hours || ' t)' end, p_target, p_reason);
+end $$;
+
+create or replace function public.mod_resolve_report(p_id bigint)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_mod() then raise exception 'Kun moderatorer.'; end if;
+  update reports set status = 'løst' where id = p_id;
+  perform public.log_mod('lukkede sag', (select target_user from reports where id = p_id), null);
+end $$;
+
+create or replace function public.mod_delete_content(p_kind text, p_id bigint)
+returns void language plpgsql security definer set search_path = public as $$
+declare who uuid; txt text;
+begin
+  if not public.is_mod() then raise exception 'Kun moderatorer.'; end if;
+  if p_kind = 'message' then
+    delete from messages where id = p_id returning user_id, body into who, txt;
+  elsif p_kind = 'gmessage' then
+    delete from group_messages where id = p_id returning user_id, body into who, txt;
+  else
+    raise exception 'Ukendt type.';
+  end if;
+  update reports set status = 'løst' where kind = p_kind and target_id = p_id::text and status = 'ny';
+  perform public.log_mod('slettede besked', who, txt);
+end $$;
+
+-- ---------- Kun admin ----------
+create or replace function public.admin_ban(p_target uuid, p_ban boolean, p_reason text default null)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'Kun admin.'; end if;
+  if p_target = auth.uid() then raise exception 'Du kan ikke udelukke dig selv.'; end if;
+  update profiles set banned = p_ban, banned_reason = case when p_ban then coalesce(nullif(trim(p_reason), ''), 'Brud på husreglerne') end
+   where id = p_target;
+  perform public.log_mod(case when p_ban then 'udelukkede' else 'ophævede udelukkelse' end, p_target, p_reason);
+end $$;
+
+create or replace function public.admin_set_role(p_target uuid, p_role text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'Kun admin.'; end if;
+  if p_role not in ('member','moderator','admin') then raise exception 'Ukendt rolle.'; end if;
+  if p_target = auth.uid() and p_role <> 'admin' then raise exception 'Du kan ikke fjerne din egen admin-adgang.'; end if;
+  update profiles set role = p_role, ai_status = case when p_role <> 'member' then 'ok' else ai_status end where id = p_target;
+  perform public.log_mod('satte rolle: ' || p_role, p_target, null);
+end $$;
+
+-- Ny login-kode til et medlem, der har mistet sin (vises kun for admin, én gang)
+create or replace function public.admin_reset_code(p_target uuid)
+returns text language plpgsql security definer set search_path = public, extensions, auth as $$
+declare alphabet text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; code text := ''; i int;
+begin
+  if not public.is_admin() then raise exception 'Kun admin.'; end if;
+  for i in 1..10 loop
+    code := code || substr(alphabet, 1 + (get_byte(extensions.gen_random_bytes(1), 0) % 32), 1);
+  end loop;
+  update auth.users set encrypted_password = extensions.crypt(code, extensions.gen_salt('bf', 10)), updated_at = now()
+   where id = p_target;
+  if not found then raise exception 'Brugeren findes ikke.'; end if;
+  perform public.log_mod('lavede ny login-kode', p_target, null);
+  return substr(code, 1, 5) || '-' || substr(code, 6, 5);
+end $$;
+
+create or replace function public.admin_set_ai_check(p_on boolean)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'Kun admin.'; end if;
+  update app_settings set ai_profile_check = p_on, updated_at = now() where id = 1;
+  perform public.log_mod(case when p_on then 'slog AI-tjek til' else 'slog AI-tjek fra' end, null, null);
+end $$;
+
+do $$ declare f text; begin
+  foreach f in array array['mod_review_profile(uuid,boolean,text)','mod_mute(uuid,integer,text)','mod_resolve_report(bigint)',
+    'mod_delete_content(text,bigint)','admin_ban(uuid,boolean,text)','admin_set_role(uuid,text)','admin_reset_code(uuid)','admin_set_ai_check(boolean)'] loop
+    execute format('revoke all on function public.%s from public, anon', f);
+    execute format('grant execute on function public.%s to authenticated', f);
+  end loop;
+end $$;
+
+-- ---------- Sikkerhedsregler (opdateret) ----------
+alter table public.app_settings  enable row level security;
+alter table public.announcements enable row level security;
+alter table public.mod_log       enable row level security;
+
+drop policy if exists "profiles_read" on public.profiles;
+create policy "profiles_read" on public.profiles for select to authenticated
+  using (id = auth.uid() or public.is_mod() or (not banned and ai_status in ('ok','review')));
+
+drop policy if exists "messages_delete" on public.messages;
+create policy "messages_delete" on public.messages for delete to authenticated
+  using (user_id = auth.uid() or public.is_mod());
+
+drop policy if exists "gmsg_delete" on public.group_messages;
+create policy "gmsg_delete" on public.group_messages for delete to authenticated
+  using (user_id = auth.uid() or public.is_group_owner(group_id) or public.is_mod());
+
+drop policy if exists "reports_admin_read" on public.reports;
+drop policy if exists "reports_admin_update" on public.reports;
+drop policy if exists "reports_mod_read" on public.reports;
+create policy "reports_mod_read" on public.reports for select to authenticated
+  using (public.is_mod());
+
+-- Et medlem, hvis profil er stoppet, må stadig klage over det
+drop policy if exists "reports_insert" on public.reports;
+create policy "reports_insert" on public.reports for insert to authenticated
+  with check (public.is_active() or (kind = 'profile' and target_id = auth.uid()::text));
+
+drop policy if exists "settings_read" on public.app_settings;
+create policy "settings_read" on public.app_settings for select to authenticated using (true);
+
+drop policy if exists "ann_read" on public.announcements;
+drop policy if exists "ann_post" on public.announcements;
+drop policy if exists "ann_delete" on public.announcements;
+create policy "ann_read" on public.announcements for select to authenticated using (true);
+create policy "ann_post" on public.announcements for insert to authenticated
+  with check (public.is_mod() and author = auth.uid());
+create policy "ann_delete" on public.announcements for delete to authenticated
+  using (author = auth.uid() or public.is_admin());
+
+drop policy if exists "log_read" on public.mod_log;
+create policy "log_read" on public.mod_log for select to authenticated using (public.is_mod());
+
+do $$ begin alter publication supabase_realtime add table public.announcements; exception when duplicate_object then null; end $$;
+do $$ begin alter publication supabase_realtime add table public.profiles;      exception when duplicate_object then null; end $$;
+
 -- ---------- Gør dig selv til admin (kør EFTER du har oprettet din profil i appen) ----------
--- update public.profiles set is_admin = true
--- where id = (select id from auth.users where email = 'DIN@EMAIL.dk');
+-- Skriv dit kaldenavn i stedet for DIT-KALDENAVN:
+-- update public.profiles set role = 'admin' where lower(nickname) = lower('DIT-KALDENAVN');

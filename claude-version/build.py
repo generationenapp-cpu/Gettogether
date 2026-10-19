@@ -55,7 +55,8 @@ ABOUT = ('<p>Dette er Claude-versionen af GetTogether. Alt gemmes i denne Claude
          '<ul><li>Private beskeder og grupper vises kun for de rigtige personer i appen, men de er ikke låst i databasen '
          'som i den udgivne app. Del derfor ikke følsomme oplysninger her.</li>'
          '<li>Telefonopkald findes kun i den udgivne app.</li>'
-         '<li>Ejeren af siden er moderator.</li></ul>')
+         '<li>Nye og ændrede profiler bliver tjekket af Claude, så tydelige fake eller skræmmende profiler bliver stoppet.</li>'
+         '<li>Ejeren af siden er administrator. Moderatorer og login med kaldenavn og kode findes i den udgivne app.</li></ul>')
 
 boot = """
 (function(){

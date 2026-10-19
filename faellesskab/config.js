@@ -10,6 +10,11 @@ window.APP_CONFIG = {
   // Vises i appen
   APP_NAME: 'GetTogether',
 
+  // Login med kaldenavn + kode: Supabase skal bruge en e-mail bag kulisserne.
+  // Skriv et domæne, du ejer, som kan modtage mail (fx dit firmadomæne).
+  // Der bliver ALDRIG sendt mails dertil, og ingen medlemmer ser det.
+  LOGIN_DOMAIN: 'DIT-DOMÆNE.dk',
+
   // Bruges i privatlivspolitikken + når brugere skal kontakte jer (GDPR-krav)
   CONTROLLER_NAME: 'Dit navn eller virksomhedsnavn',
   CONTROLLER_ID: 'CVR-nr. eller adresse',

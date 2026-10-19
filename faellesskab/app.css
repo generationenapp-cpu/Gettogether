@@ -277,3 +277,27 @@ nav button.guide{color:var(--muted)}
 .dlg p{margin:0;font-size:15px}
 .dlg .duo{margin-top:6px}
 .btn.danger-fill{background:var(--danger);color:#fff}
+
+/* ---------- Kode-login ---------- */
+.codebox{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface2);border:1px dashed var(--brass);border-radius:16px;padding:14px 16px;margin:12px 0 4px}
+.codebox b{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:24px;letter-spacing:3px;user-select:all;overflow-wrap:anywhere}
+.modtag{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.02em;background:var(--brass-soft);color:var(--brass-ink);border-radius:8px;padding:1px 7px;vertical-align:middle;font-family:var(--body)}
+.muted-bar{justify-content:center;text-align:center;color:var(--muted);font-size:14px;padding-top:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+
+/* ---------- Opslag ---------- */
+.ann-list{display:flex;flex-direction:column;gap:8px;margin:0 12px}
+.ann{background:var(--surface);border-radius:18px;padding:14px 16px;box-shadow:inset 3px 0 0 var(--brass);display:flex;flex-direction:column;gap:4px}
+.ann b{font-family:var(--head);font-weight:400;font-size:17px}
+.ann p{margin:0;font-size:15px;line-height:1.5}
+.ann small{font-size:12.5px}
+
+/* ---------- Moderatorpanel ---------- */
+.segment.wrap{flex-wrap:wrap}
+.segment.wrap button{flex:1 1 auto}
+.pbody{padding-bottom:28px}
+.stack{display:flex;flex-direction:column;gap:10px;padding:0 12px}
+.pbody .section-title{margin-left:16px;margin-right:16px}
+.tag.bad{background:rgba(232,133,122,.16);color:var(--danger)}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:14px;font-size:14.5px}
+.facts div{display:flex;flex-direction:column;min-width:0}
+.facts .muted{font-size:12.5px}

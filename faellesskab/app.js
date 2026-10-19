@@ -22,6 +22,24 @@ const EMBEDDED = !!CONFIG.EMBEDDED;          // kører inde i en anden side (fx 
 const CALLS = CONFIG.CALLS !== false;        // telefonopkald kan slås fra, hvor WebRTC ikke findes
 const PRIVACY_URL = CONFIG.PRIVACY_URL === undefined ? 'privatliv.html' : CONFIG.PRIVACY_URL;
 const ROOT = window.GT_ROOT || document;     // dokumentet – eller en shadow root, når appen er indlejret
+const PANEL = !!window.GT_PANEL;             // moderatorpanelet (panel/index.html)
+const LOGIN_READY = EMBEDDED || (!!CONFIG.LOGIN_DOMAIN && !/DIT-DOM/i.test(CONFIG.LOGIN_DOMAIN));
+
+/* ---------- login med kaldenavn + kode ---------- */
+const normNick = s => String(s || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+const normCode = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+async function loginEmail(nickname){
+  // Supabase kræver en e-mail bag kulisserne. Vi laver en fast, anonym adresse ud fra kaldenavnet.
+  // Der bliver aldrig sendt mails til den (slå "Confirm email" fra i Supabase).
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('gettogether:' + normNick(nickname)));
+  const hex = [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 40);
+  return `u${hex}@${CONFIG.LOGIN_DOMAIN}`;
+}
+function makeCode(){
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const c = [...crypto.getRandomValues(new Uint8Array(10))].map(b => A[b % 32]).join('');
+  return c.slice(0, 5) + '-' + c.slice(5);
+}
 
 /* =============================================================
    DATA-LAG (Supabase)
@@ -32,8 +50,13 @@ const me = () => state.user.id;
 const api = {
   async session(){ const { data } = await sb.auth.getSession(); return data.session?.user || null; },
   onAuth(cb){ sb.auth.onAuthStateChange((_e, s) => cb(s?.user || null)); },
-  async sendCode(email){ ok(await sb.auth.signInWithOtp({ email, options:{ emailRedirectTo: location.origin + location.pathname, shouldCreateUser: true } })); },
-  async verifyCode(email, token){ ok(await sb.auth.verifyOtp({ email, token, type:'email' })); },
+  async signIn(nickname, code){ ok(await sb.auth.signInWithPassword({ email: await loginEmail(nickname), password: normCode(code) })); },
+  async signUp(nickname, code){
+    const r = ok(await sb.auth.signUp({ email: await loginEmail(nickname), password: normCode(code), options:{ data:{ nickname: nickname.trim() } } }));
+    if (!r || !r.session) throw { code:'confirm_on', message:'confirm_on' };
+  },
+  async changeCode(code){ ok(await sb.auth.updateUser({ password: normCode(code) })); },
+  async checkProfile(){ const { data, error } = await sb.functions.invoke('check-profile'); if (error) throw error; return data; },
   async signOut(){ await sb.auth.signOut(); },
 
   // profil
@@ -125,6 +148,8 @@ const api = {
       .on('postgres_changes', { event:'INSERT', schema:'public', table:'group_messages' }, p => h.gmsg(p.new))
       .on('postgres_changes', { event:'DELETE', schema:'public', table:'group_messages' }, p => h.gdel(p.old))
       .on('postgres_changes', { event:'*', schema:'public', table:'calls' }, p => h.call(p))
+      .on('postgres_changes', { event:'*', schema:'public', table:'announcements' }, () => h.ann && h.ann())
+      .on('postgres_changes', { event:'UPDATE', schema:'public', table:'profiles', filter:'id=eq.' + m }, p => h.me && h.me(p.new))
       .subscribe();
     return () => sb.removeChannel(ch);
   },
@@ -146,16 +171,31 @@ const api = {
       sb.from('group_messages').select('*').eq('user_id', m).order('created_at').then(ok),
       sb.from('calls').select('*').order('created_at').then(ok),
     ]);
-    return { eksporteret: new Date().toISOString(), email: state.user.email, profil: profile,
+    return { eksporteret: new Date().toISOString(), kaldenavn: profile.nickname, profil: profile,
       beskeder_i_rum: messages, private_beskeder: dms, gruppebeskeder: gmsgs, venskaber: friends, opkald: calls, blokeringer: blocks };
   },
 
-  // moderation (kun admins – håndhæves også i databasen)
+  // moderation (rettigheder håndhæves i databasen)
   async openReports(){ return ok(await sb.from('reports').select('*').eq('status', 'ny').order('created_at', { ascending:false }).limit(200)); },
-  async resolveReport(id){ ok(await sb.from('reports').update({ status:'løst' }).eq('id', id)); },
-  async resolveAllFor(kind, targetId){ ok(await sb.from('reports').update({ status:'løst' }).eq('kind', kind).eq('target_id', String(targetId)).eq('status', 'ny')); },
-  async setBan(uid, banned, reason){ ok(await sb.from('profiles').update({ banned, banned_reason: banned ? reason : null }).eq('id', uid)); },
-  async bannedUsers(){ return ok(await sb.from('profiles').select('*').eq('banned', true).order('nickname')); },
+  async allProfiles(){ return ok(await sb.from('profiles').select('*').order('created_at', { ascending:false }).limit(1000)); },
+  async announcements(){ return ok(await sb.from('announcements').select('*').order('created_at', { ascending:false }).limit(30)); },
+  async postAnnouncement(title, body){ ok(await sb.from('announcements').insert({ title, body, author: me() })); },
+  async deleteAnnouncement(id){ ok(await sb.from('announcements').delete().eq('id', id)); },
+  async modLog(){ return ok(await sb.from('mod_log').select('*').order('created_at', { ascending:false }).limit(200)); },
+  async settings(){ return ok(await sb.from('app_settings').select('*').eq('id', 1).maybeSingle()) || { ai_profile_check:false }; },
+  async rpc(name, args){ return ok(await sb.rpc(name, args)); },
+  modReview(t, approve, reason){ return api.rpc('mod_review_profile', { p_target:t, p_approve:approve, p_reason:reason || null }); },
+  modMute(t, hours, reason){ return api.rpc('mod_mute', { p_target:t, p_hours:hours, p_reason:reason || null }); },
+  modResolve(id){ return api.rpc('mod_resolve_report', { p_id:+id }); },
+  modDelete(kind, id){ return api.rpc('mod_delete_content', { p_kind:kind, p_id:+id }); },
+  adminBan(t, ban, reason){ return api.rpc('admin_ban', { p_target:t, p_ban:ban, p_reason:reason || null }); },
+  adminRole(t, role){ return api.rpc('admin_set_role', { p_target:t, p_role:role }); },
+  adminResetCode(t){ return api.rpc('admin_reset_code', { p_target:t }); },
+  adminAi(on){ return api.rpc('admin_set_ai_check', { p_on:on }); },
+  subMe(cb){
+    const ch = sb.channel('me-' + me()).on('postgres_changes', { event:'UPDATE', schema:'public', table:'profiles', filter:`id=eq.${me()}` }, cb).subscribe();
+    return () => sb.removeChannel(ch);
+  },
   subReports(cb){
     const ch = sb.channel('reports').on('postgres_changes', { event:'INSERT', schema:'public', table:'reports' }, cb).subscribe();
     return () => sb.removeChannel(ch);
@@ -167,7 +207,8 @@ const api = {
    ============================================================= */
 const state = {
   ready:false, uidSet:undefined, user:null, profile:null,
-  loginStep:'email', loginEmail:'',
+  authTab:'login', newNick:'', newCode:'', checking:false, checkFailed:false, announcements:[],
+  panelTab:'cases', panel:{ profiles:null, log:null, settings:null, q:'', filter:'alle' },
   tab:'rooms', friendsTab:'mine',
   roomId:null, dmWith:null, groupId:null, msgs:[], hasMore:false,
   rooms:[], people:new Map(), members:null, threads:[], blocks:new Set(),
@@ -202,8 +243,12 @@ function errMsg(e, ctx){
   if (e.code === '23505') return 'Findes allerede.';
   if (e.code === '42501' && ctx === 'dm') return 'Denne person tager kun imod beskeder fra venner. Send en venneanmodning først.';
   if (e.code === '42501') return 'Det har du ikke adgang til.';
-  if (/Token has expired|invalid/i.test(m) && ctx === 'otp') return 'Koden er forkert eller udløbet. Prøv igen eller få en ny kode.';
-  if (/rate limit|security purposes/i.test(m)) return 'Vent lidt, før du beder om en ny kode.';
+  if (ctx === 'login' && /invalid login credentials|invalid_credentials/i.test(m + (e.code || ''))) return 'Kaldenavnet eller koden passer ikke.';
+  if (ctx === 'signup' && /already registered|already exists|user_already_exists/i.test(m + (e.code || ''))) return 'Kaldenavnet er taget. Vælg et andet.';
+  if (e.code === 'confirm_on') return 'Supabase venter på en bekræftelses-mail. Slå "Confirm email" fra under Authentication (README, trin 1).';
+  if (/email_address_invalid|Email address .* is invalid/i.test(m + (e.code || ''))) return 'LOGIN_DOMAIN i config.js skal være et domæne, du ejer, som kan modtage mail (README, trin 2).';
+  if (e.code === '42501' && isMuted(state.profile)) return 'Du har en pause og kan ikke skrive lige nu.';
+  if (/rate limit|security purposes|too many/i.test(m)) return 'For mange forsøg. Vent et par minutter og prøv igen.';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'Ingen forbindelse. Tjek dit internet.';
   return m || 'Noget gik galt. Prøv igen.';
 }
@@ -240,6 +285,8 @@ const friendIds = () => state.friendships.filter(f => f.status === 'accepted').m
 const incoming = () => state.friendships.filter(f => f.status === 'pending' && f.addressee === state.user.id && !state.blocks.has(f.requester));
 const outgoing = () => state.friendships.filter(f => f.status === 'pending' && f.requester === state.user.id);
 const groupOf = gid => state.groups.find(g => g.id === gid);
+const isMod = () => !!(state.profile && ['moderator','admin'].includes(state.profile.role) && !state.profile.banned);
+const isAdminRole = () => !!(state.profile && state.profile.role === 'admin' && !state.profile.banned);
 const isOwner = g => g && g.owner === state.user.id;
 
 const ICON = {
@@ -269,16 +316,53 @@ async function setUser(u){
   state.uidSet = id;
   unsubAll(); Call.reset();
   Object.assign(state, { user:u, profile:null, ready:false, tab:'rooms', roomId:null, dmWith:null, groupId:null,
-    members:null, threads:[], friendships:[], groups:[], reports:null, banned:null, sheet:null, loginStep:'email' });
+    members:null, threads:[], friendships:[], groups:[], reports:null, banned:null, sheet:null, checking:false, checkFailed:false, authTab:'login', newCode:'' });
+  state.panel = { profiles:null, log:null, settings:null, q:'', filter:'alle' }; stopWatch();
   state.people.clear(); state.gMembers.clear(); state.gLast.clear();
   drawSheet(); render();
   if (u){
     try { state.profile = await api.myProfile(u.id); }
     catch(e){ toast(errMsg(e)); }
-    if (state.profile && !state.profile.banned) await afterProfile();
+    if (state.profile && !state.profile.banned){
+      if (PANEL){ if (isMod()) await afterPanel(); }
+      else if (state.profile.ai_status === 'pending') runCheck();
+      else if (state.profile.ai_status === 'blocked') startWatch();
+      else await afterProfile();
+    }
   }
   state.ready = true;
   render();
+}
+
+/* ---------- AI-tjek af profilen ---------- */
+async function runCheck(){
+  state.checking = true; state.checkFailed = false; render();
+  try { await api.checkProfile(); } catch(e){ state.checkFailed = true; }
+  await reloadMe();
+}
+async function reloadMe(){
+  try { const p = await api.myProfile(state.user.id); if (p) state.profile = p; } catch(e){}
+  state.checking = false;
+  const s = state.profile && state.profile.ai_status;
+  if (s === 'ok' || s === 'review'){ stopWatch(); if (!state.subs.live) await afterProfile(); render(); return; }
+  render(); startWatch();
+}
+let watchT = null, watchSub = null;
+// Mens profilen venter eller er stoppet: tjek hvert 15. sekund og lyt efter, at en moderator godkender den
+function startWatch(){ if (watchT) return; watchT = setInterval(reloadMe, 15000); try { watchSub = api.subMe(() => reloadMe()); } catch(e){} }
+function stopWatch(){ clearInterval(watchT); watchT = null; if (watchSub){ try { watchSub(); } catch(e){} watchSub = null; } }
+function onMyProfile(row){
+  const before = state.profile || {};
+  state.profile = { ...before, ...row };
+  state.people.set(state.profile.id, state.profile);
+  if (['banned','ai_status','muted_until','role'].some(k => before[k] !== state.profile[k])){
+    if (state.profile.muted_until !== before.muted_until && isMuted(state.profile)) toast('En moderator har givet dig en pause.');
+    render();
+  }
+}
+async function loadAnnouncements(){
+  try { state.announcements = await api.announcements(); } catch(e){}
+  if (!inChat() && state.tab === 'rooms') render();
 }
 async function afterProfile(){
   state.people.set(state.profile.id, state.profile);
@@ -288,10 +372,11 @@ async function afterProfile(){
     await loadGroups(true);
     await ensurePeople([...threads.map(t => t.other), ...friendships.flatMap(f => [f.requester, f.addressee])]);
   } catch(e){ toast(errMsg(e)); }
-  state.subs.live = api.subLive({ dm:onDM, friend:onFriendChange, joined:onJoined, gmsg:onGroupMsg, gdel:onGroupDel, call:p => Call.onRow(p) });
-  if (state.profile.is_admin){
-    loadReports();
-    state.subs.reports = api.subReports(() => { loadReports(); toast('Ny sag til moderation'); });
+  try { state.announcements = await api.announcements(); } catch(e){}
+  state.subs.live = api.subLive({ dm:onDM, friend:onFriendChange, joined:onJoined, gmsg:onGroupMsg, gdel:onGroupDel, call:p => Call.onRow(p), ann:loadAnnouncements, me:onMyProfile });
+  if (EMBEDDED && isMod()){
+    loadReports(); loadPanel();
+    state.subs.reports = api.subReports(() => { loadReports(); loadPanel(); toast('Ny sag til moderation'); });
   }
 }
 function unsubRoom(){ if (state.subs.room){ state.subs.room(); state.subs.room = null; } }
@@ -308,11 +393,14 @@ const inChat = () => !!(state.roomId || state.dmWith || state.groupId);
 function render(){
   const app = $('#app');
   const off = navigator.onLine ? '' : '<div class="offline">Du er offline. Beskeder sendes, når forbindelsen er tilbage.</div>';
-  if (!CONFIGURED){ app.innerHTML = viewNotConfigured(); return; }
+  if (!CONFIGURED || !LOGIN_READY){ app.innerHTML = viewNotConfigured(); return; }
   if (!state.ready){ app.innerHTML = off + '<main><div class="spin"></div></main>'; return; }
   if (!state.user){ app.innerHTML = off + viewLogin(); return; }
-  if (!state.profile){ app.innerHTML = off + viewOnboarding(); return; }
+  if (!state.profile){ app.innerHTML = off + (PANEL ? `<main><div class="card-center"><h2 class="page-title">Opret din profil først</h2><p class="muted">Log ind i fællesskabet og opret din profil. Bagefter kan administratoren give dig adgang til panelet.</p><button class="btn ghost" data-action="logout">Log ud</button></div></main>` : viewOnboarding()); return; }
   if (state.profile.banned){ app.innerHTML = viewBanned(); return; }
+  if (PANEL){ app.innerHTML = off + viewPanelPage(); return; }
+  if (state.profile.ai_status === 'pending'){ app.innerHTML = off + viewChecking(); return; }
+  if (state.profile.ai_status === 'blocked'){ app.innerHTML = off + viewStopped(); return; }
 
   const chat = inChat();
   let body;
@@ -320,7 +408,7 @@ function render(){
   else if (state.tab === 'friends') body = viewFriends();
   else if (state.tab === 'chats') body = viewChats();
   else if (state.tab === 'me') body = viewMe();
-  else if (state.tab === 'mod' && state.profile.is_admin) body = viewMod();
+  else if (state.tab === 'mod' && EMBEDDED && isMod()) body = viewPanel();
   else body = viewRooms();
 
   const showHeader = chat || state.tab !== 'rooms';
@@ -349,9 +437,9 @@ function headerHTML(){
 function drawNav(){ const n = $('nav'); if (n && state.profile) n.outerHTML = viewNav(); }
 
 function viewNav(){
-  const counts = { friends: incoming().length, chats: unreadCount(), mod: state.reports?.length || 0 };
+  const counts = { friends: incoming().length, chats: unreadCount(), mod: isMod() ? casesCount() : 0 };
   const t = (id, label) => `<button class="${state.tab === id ? 'on' : ''}" data-action="tab" data-id="${id}" ${state.tab === id ? 'aria-current="page"' : ''}>${ICON[id]}${label}${counts[id] ? `<span class="badge">${counts[id]}</span>` : ''}</button>`;
-  return `<nav><button class="guide" data-action="guide" aria-label="Tilbage til guiden"><span class="g">نور</span>Guide</button>${t('rooms','Rum')}${t('friends','Venner')}${t('chats','Chats')}${t('me','Profil')}${state.profile.is_admin ? t('mod','Moderation') : ''}</nav>`;
+  return `<nav><button class="guide" data-action="guide" aria-label="Tilbage til guiden"><span class="g">نور</span>Guide</button>${t('rooms','Rum')}${t('friends','Venner')}${t('chats','Chats')}${t('me','Profil')}${EMBEDDED && isMod() ? t('mod','Moderation') : ''}</nav>`;
 }
 
 const RULES = `<div class="rules"><h3>Sådan passer vi på hinanden</h3><ul>
@@ -365,40 +453,277 @@ const RULES = `<div class="rules"><h3>Sådan passer vi på hinanden</h3><ul>
 
 function viewNotConfigured(){
   return `<main><div class="card-center"><h2 class="page-title">Appen mangler sine nøgler</h2>
-    <p class="muted">Indsæt din Supabase URL og anon-nøgle i <b>config.js</b> (README.md, trin 2) og upload igen.</p></div></main>`;
+    <p class="muted">Indsæt din Supabase URL, anon-nøgle og LOGIN_DOMAIN i <b>config.js</b> (README.md, trin 2) og upload igen.</p></div></main>`;
 }
 
+/* =============================================================
+   LOGIN MED KALDENAVN + KODE
+   ============================================================= */
 function viewLogin(){
   if (EMBEDDED) return `<main><div class="card-center"><h2 class="page-title">Log ind for at være med</h2><p class="muted">Fællesskabet bruger din Claude-konto. Åbn siden, mens du er logget ind, så kan du oprette en profil.</p><p class="fine"><button class="link" data-action="guide">Tilbage til guiden</button></p></div></main>`;
-  const sent = state.loginStep === 'code';
+  const tab = PANEL ? 'login' : state.authTab;
+  let form;
+  if (tab === 'login'){
+    form = `<form id="loginForm" novalidate>
+        <label class="f" for="lnick">Kaldenavn</label>
+        <input class="input" id="lnick" name="nickname" autocomplete="username" maxlength="30" placeholder="Dit kaldenavn" value="${esc(state.newNick || '')}">
+        <label class="f" for="lcode">Din kode</label>
+        <input class="input code-input" id="lcode" name="code" autocomplete="current-password" autocapitalize="characters" spellcheck="false" maxlength="13" placeholder="XXXXX-XXXXX">
+        <button class="btn wide" style="margin-top:14px;font-size:17px;padding:15px" ${state.busy ? 'disabled' : ''}>${state.busy ? 'Logger ind…' : PANEL ? 'Åbn panelet' : 'Log ind'}</button>
+        <p class="hint">Har du mistet din kode? Skriv til ${CONFIG.CONTACT_EMAIL ? `<b>${esc(CONFIG.CONTACT_EMAIL)}</b>` : 'en moderator'} med dit kaldenavn, så kan administratoren lave en ny.</p>
+      </form>`;
+  } else if (!state.newCode){
+    form = `<form id="newNickForm" novalidate>
+        <label class="f" for="nnick">Vælg et kaldenavn</label>
+        <input class="input" id="nnick" name="nickname" autocomplete="off" minlength="2" maxlength="30" placeholder="Fx Yusuf, Amina eller bare M" value="${esc(state.newNick || '')}">
+        <p class="hint">Det er dit navn i fællesskabet og det, du logger ind med. Brug ikke dit fulde navn, hvis du vil være anonym. Det kan ikke ændres bagefter.</p>
+        <button class="btn wide" style="margin-top:12px;padding:15px">Lav min kode</button>
+      </form>`;
+  } else {
+    form = `<form id="newCodeForm" novalidate>
+        <p style="margin:4px 0 0">Din kode til <b>${esc(state.newNick)}</b>:</p>
+        <div class="codebox"><b id="theCode">${esc(state.newCode)}</b><button type="button" class="btn small ghost" data-action="copycode">Kopiér</button></div>
+        <p class="hint">Gem koden et sikkert sted, fx i noterne på din telefon eller som skærmbillede. Du skal bruge den, når du logger ind. Vi kan ikke se den bagefter.</p>
+        <label class="check"><input type="checkbox" name="saved" required> Jeg har gemt min kode.</label>
+        <button class="btn wide" style="padding:15px" ${state.busy ? 'disabled' : ''}>${state.busy ? 'Opretter…' : 'Opret min profil'}</button>
+        <p class="fine"><button class="link" type="button" data-action="newnick">Vælg et andet kaldenavn</button></p>
+      </form>`;
+  }
   return `<main><div class="login">
     <section class="sky">
-      <a class="backguide" href="${GUIDE_URL}">${ICON.back.replace('<svg','<svg width="18" height="18"')}Tilbage til guiden</a><br>
-      <img src="${LOGO}" alt=""><span class="ar">معًا</span>
-      <h2>Find dit fællesskab</h2>
-      <p>Et trygt mødested for muslimer i Danmark – uanset om du er født muslim, ny i troen eller bare nysgerrig.</p>
+      ${PANEL ? '' : `<a class="backguide" href="${GUIDE_URL}">${ICON.back.replace('<svg','<svg width="18" height="18"')}Tilbage til guiden</a><br>`}
+      <img src="${LOGO}" alt=""><span class="ar">${PANEL ? 'حُرّاس' : 'معًا'}</span>
+      <h2>${PANEL ? 'Moderatorpanel' : 'Find dit fællesskab'}</h2>
+      <p>${PANEL ? 'Kun for administratoren og de moderatorer, der passer på fællesskabet. Log ind med dit kaldenavn og din kode.' : 'Et trygt mødested for muslimer i Danmark – uanset om du er født muslim, ny i troen eller bare nysgerrig.'}</p>
     </section>
     <section class="login-sheet"><div class="inner">
-      <form id="loginForm" novalidate class="step ${sent ? 'done' : ''}">
-        <span class="step-n">${sent ? '✓' : '1'}</span>
-        <div>
-          <label class="f" for="email">Din e-mail</label>
-          <input class="input" id="email" name="email" type="email" required placeholder="navn@mail.dk" autocomplete="email" value="${esc(state.loginEmail)}">
-          <button class="btn wide ${sent ? 'ghost' : ''}" style="margin-top:10px" ${state.busy === 'send' ? 'disabled' : ''}>${state.busy === 'send' ? 'Sender kode…' : sent ? 'Send en ny kode' : 'Send kode'}</button>
-          <p class="hint">${sent ? `Koden er sendt til <b>${esc(state.loginEmail)}</b>. Kig også i spam.` : 'Du får en kode på mail. Ingen adgangskode at huske.'}</p>
-        </div>
-      </form>
-      <form id="codeForm" novalidate class="step">
-        <span class="step-n">2</span>
-        <div>
-          <label class="f" for="code">Kode fra mailen</label>
-          <input class="input code-input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="000000" value="${esc(state.code || '')}">
-          <button class="btn wide" style="margin-top:10px;font-size:17px;padding:15px" ${state.busy === 'verify' ? 'disabled' : ''}>${state.busy === 'verify' ? 'Logger ind…' : 'Log ind'}</button>
-        </div>
-      </form>
-      <p class="fine">Din e-mail er kun synlig for dig.<br><a href="privatliv.html">Sådan passer vi på dine data</a></p>
+      ${PANEL ? '' : `<div class="segment" style="margin:0 0 6px"><button class="${tab === 'login' ? 'on' : ''}" data-action="authtab" data-id="login">Log ind</button><button class="${tab === 'new' ? 'on' : ''}" data-action="authtab" data-id="new">Ny her</button></div>`}
+      ${form}
+      <p class="fine">Vi kender ikke din e-mail eller dit telefonnummer.${PRIVACY_URL ? `<br><a href="${PANEL ? '../' : ''}${PRIVACY_URL}">Sådan passer vi på dine data</a>` : ''}</p>
     </div></section>
   </div></main>`;
+}
+
+/* ---------- AI-tjek af profilen ---------- */
+function viewChecking(){
+  const failed = state.checkFailed;
+  return `<main><div class="card-center" style="text-align:center;padding-top:60px">
+    ${failed ? STAR : '<div class="spin" style="margin:0 auto 18px"></div>'}
+    <h2 class="page-title">${failed ? 'Din profil venter på en moderator' : 'Vi tjekker din profil'}</h2>
+    <p class="muted">${failed ? 'Vi kunne ikke tjekke den automatisk lige nu. En moderator godkender den hurtigst muligt – siden opdaterer sig selv.' : 'Det tager kun et øjeblik. Vi sørger for, at der ikke er falske eller truende profiler i fællesskabet.'}</p>
+    ${failed ? '<button class="btn ghost" data-action="recheck" style="margin-top:12px">Prøv igen</button>' : ''}
+    ${EMBEDDED ? '' : '<p class="fine"><button class="link" data-action="logout">Log ud</button></p>'}
+  </div></main>`;
+}
+
+function viewStopped(){
+  const p = state.profile;
+  return `<main><div class="card-center">
+    <h2 class="page-title">Din profil blev stoppet</h2>
+    <p class="muted">${esc(p.ai_reason || 'Profilen ligner noget, vi ikke tillader i fællesskabet.')}</p>
+    <p class="muted">Ret din profil herunder, så tjekker vi den igen. Mener du, det er en fejl, kan du bede en moderator se på den.</p>
+    <form id="stopForm" class="panel" style="margin-top:14px">
+      <label class="f" style="margin-top:0">By</label><input class="input" name="city" list="cities" maxlength="40" value="${esc(p.city || '')}">
+      <datalist id="cities">${CITIES.map(c => `<option value="${c}">`).join('')}</datalist>
+      <label class="f">Lidt om dig</label><textarea class="input" name="bio" rows="3" maxlength="300">${esc(p.bio || '')}</textarea>
+      <label class="f">Interesser</label><input class="input" name="interests" value="${esc((p.interests || []).join(', '))}">
+      <button class="btn wide" style="margin-top:14px">Gem og tjek igen</button>
+    </form>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+      <button class="btn ghost" data-action="appeal">Bed en moderator se på det</button>
+      ${EMBEDDED ? '' : '<button class="btn ghost" data-action="logout">Log ud</button>'}
+      <button class="btn danger" data-action="deleteaccount">Slet min konto</button>
+    </div>
+  </div></main>`;
+}
+
+/* ---------- Opslag fra moderatorerne (forsiden) ---------- */
+function viewAnnouncements(){
+  const list = (state.announcements || []).slice(0, 3);
+  if (!list.length) return '';
+  return `<h3 class="group-title">Fra moderatorerne</h3>
+    <div class="ann-list">${list.map(a => `<article class="ann"><b>${esc(a.title)}</b><p>${esc(a.body).replace(/\n/g, '<br>')}</p><small class="muted">${fmt(a.created_at)}</small></article>`).join('')}</div>`;
+}
+
+/* =============================================================
+   MODERATORPANEL
+   Admin ser alt. Moderatorer får en begrænset version:
+   sager, medlemmer (pause og godkend/stop profil), opslag og log.
+   ============================================================= */
+const ROLE = { member:'Medlem', moderator:'Moderator', admin:'Administrator' };
+const isMuted = p => !!(p && p.muted_until && new Date(p.muted_until) > new Date());
+const panelQueue = () => (state.panel.profiles || []).filter(p => p.role === 'member' && ['pending','review','blocked'].includes(p.ai_status));
+const casesCount = () => (state.reports || []).length + panelQueue().filter(p => p.ai_status !== 'blocked').length;
+
+function viewPanelPage(){
+  if (!isMod()) return `<main><div class="card-center"><h2 class="page-title">Ingen adgang</h2><p class="muted">Panelet er kun for administratoren og moderatorerne.</p><button class="btn ghost" data-action="logout">Log ud</button></div></main>`;
+  return `<header><h1><span class="brand"><img src="${LOGO}" alt="">Moderatorpanel<span class="by">${ROLE[state.profile.role]}</span></span></h1><button class="btn small ghost" data-action="logout">Log ud</button></header>
+    <main id="main">${viewPanel()}</main>`;
+}
+
+function viewPanel(){
+  const admin = isAdminRole();
+  const tabs = [['cases', 'Sager', casesCount()], ['members', 'Medlemmer'], ['posts', 'Opslag'], ['log', 'Log']];
+  if (admin && !EMBEDDED) tabs.push(['settings', 'Indstillinger']);
+  const seg = `<div class="segment wrap">${tabs.map(([id, l, n]) => `<button class="${state.panelTab === id ? 'on' : ''}" data-action="ptab" data-id="${id}">${l}${n ? ` <span class="count">${n}</span>` : ''}</button>`).join('')}</div>`;
+  let body = '<div class="spin"></div>';
+  if (state.panelTab === 'cases') body = viewCases();
+  else if (state.panelTab === 'members') body = viewPMembers();
+  else if (state.panelTab === 'posts') body = viewPosts();
+  else if (state.panelTab === 'log') body = viewLog();
+  else if (state.panelTab === 'settings' && admin) body = viewSettings();
+  return `<div class="pad">${seg}</div><div class="pbody">${body}</div>`;
+}
+
+function profileCard(p, actions){
+  return `<div class="report">
+    <div style="display:flex;gap:10px;align-items:center">${avatar(p, 36)}<div class="grow"><b>${esc(p.nickname)}</b><div class="muted" style="font-size:13px">${esc(JOURNEY[p.journey] || '')}${p.city ? ` i ${esc(p.city)}` : ''} · ${p.gender === 'kvinde' ? 'søster' : 'broder'} · oprettet ${fmt(p.created_at)}</div></div>
+      <span class="tag ${p.ai_status === 'blocked' ? 'bad' : ''}">${{ pending:'Venter på tjek', review:'AI: tjek den', blocked:'Stoppet', ok:'Godkendt' }[p.ai_status]}</span></div>
+    ${p.bio ? `<blockquote>${esc(p.bio)}</blockquote>` : '<div class="muted" style="font-size:14px">Ingen tekst om sig selv.</div>'}
+    ${p.interests?.length ? `<div class="ints">${p.interests.map(i => `<span>${esc(i)}</span>`).join('')}</div>` : ''}
+    ${p.ai_reason ? `<div style="font-size:14px"><span class="muted">Begrundelse:</span> ${esc(p.ai_reason)}</div>` : ''}
+    <div class="acts">${actions}</div></div>`;
+}
+
+function viewCases(){
+  if (!state.reports || !state.panel.profiles) return '<div class="spin"></div>';
+  const q = panelQueue();
+  const waiting = q.filter(p => p.ai_status !== 'blocked'), stopped = q.filter(p => p.ai_status === 'blocked');
+  const kindLabel = { message:'Besked i et rum', dm:'Privat besked', profile:'Profil', gmessage:'Besked i en privat gruppe' };
+  const admin = isAdminRole();
+  const reps = state.reports.map(r => {
+    const tm = r.target_user ? (state.people.get(r.target_user) || { id:r.target_user, nickname:'?' }) : null;
+    const canAct = r.target_user && r.target_user !== state.user.id && (admin || (tm && tm.role === 'member'));
+    const appeal = r.kind === 'profile' && r.reporter && r.reporter === r.target_user;
+    return `<div class="report">
+      <div style="font-size:13px" class="muted">${appeal ? 'Klage over stoppet profil' : kindLabel[r.kind] || r.kind}, ${r.reporter ? `fra ${esc(nick(r.reporter))}` : 'fra AI-tjekket'} · ${fmt(r.created_at)}</div>
+      <div style="display:flex;align-items:center;gap:10px">${tm ? avatar(tm, 32) : ''}<b>${esc(tm ? nick(r.target_user) : 'Ukendt')}</b></div>
+      ${r.snapshot ? `<blockquote>${esc(r.snapshot)}</blockquote>` : '<div class="muted">Indholdet er allerede slettet.</div>'}
+      ${r.reason ? `<div style="font-size:14.5px"><span class="muted">Begrundelse:</span> ${esc(r.reason)}</div>` : ''}
+      <div class="acts">
+        ${r.kind === 'message' || r.kind === 'gmessage' ? `<button class="btn small danger" data-action="p-del" data-id="${r.id}">Slet beskeden</button>` : ''}
+        ${appeal ? `<button class="btn small" data-action="p-approve" data-id="${esc(r.target_user)}">Godkend profilen</button>` : ''}
+        ${canAct ? `<button class="btn small ghost" data-action="p-mute" data-hours="24" data-id="${esc(r.target_user)}">Pause 24 t</button>` : ''}
+        ${canAct && admin ? `<button class="btn small danger" data-action="p-ban" data-id="${esc(r.target_user)}">Udeluk</button>` : ''}
+        <button class="btn small ghost" data-action="p-resolve" data-id="${r.id}">Luk sagen</button>
+      </div></div>`;
+  }).join('');
+  const prof = p => profileCard(p, `<button class="btn small" data-action="p-approve" data-id="${esc(p.id)}">Godkend</button>${p.ai_status !== 'blocked' ? `<button class="btn small danger" data-action="p-stop" data-id="${esc(p.id)}">Stop profilen</button>` : ''}`);
+  if (!reps && !waiting.length && !stopped.length) return `<p class="empty">${STAR}Ingen åbne sager. Fællesskabet har det godt.</p>`;
+  return `
+    ${waiting.length ? `<h3 class="section-title" style="margin-top:4px">Profiler der skal ses (${waiting.length})</h3><div class="stack">${waiting.map(prof).join('')}</div>` : ''}
+    ${reps ? `<h3 class="section-title">Rapporter (${state.reports.length})</h3><div class="stack">${reps}</div>` : ''}
+    ${stopped.length ? `<h3 class="section-title">Stoppet af AI-tjekket (${stopped.length})</h3><p class="hint" style="margin:-4px 0 10px">Tjek dem, hvis du tror, AI'en tog fejl.</p><div class="stack">${stopped.map(prof).join('')}</div>` : ''}`;
+}
+
+function viewPMembers(){
+  const all = state.panel.profiles;
+  if (!all) return '<div class="spin"></div>';
+  const week = Date.now() - 7 * 864e5, q = state.panel.q.trim().toLowerCase(), f = state.panel.filter;
+  const list = all.filter(p => (f === 'alle'
+      || (f === 'nye' && new Date(p.created_at) > week)
+      || (f === 'pause' && isMuted(p))
+      || (f === 'udelukket' && p.banned)
+      || (f === 'team' && p.role !== 'member'))
+    && (!q || [p.nickname, p.city].join(' ').toLowerCase().includes(q)));
+  const chips = [['alle', 'Alle'], ['nye', 'Nye denne uge'], ['team', 'Moderatorer'], ['pause', 'På pause'], ['udelukket', 'Udelukket']];
+  return `<div class="pad" style="padding-top:0">
+      <input id="pq" class="input" type="search" placeholder="Søg på kaldenavn eller by" value="${esc(state.panel.q)}" style="background:var(--surface)">
+      <div class="chips">${chips.map(([id, l]) => `<button class="chip ${f === id ? 'on' : ''}" data-action="pf" data-id="${id}">${l}</button>`).join('')}</div>
+    </div>
+    <div class="card-list"><ul class="list" style="padding:0">${list.length ? list.map(p => `<li><button class="row" data-action="pmember" data-id="${esc(p.id)}">${avatar(p, 40)}
+      <span class="grow"><b>${esc(p.nickname)}</b><small>${esc(JOURNEY[p.journey] || '')}${p.city ? ` i ${esc(p.city)}` : ''} · ${fmt(p.created_at)}</small></span>
+      ${p.role !== 'member' ? `<span class="tag">${ROLE[p.role]}</span>` : ''}${p.banned ? '<span class="tag bad">Udelukket</span>' : isMuted(p) ? '<span class="tag">Pause</span>' : p.ai_status !== 'ok' ? '<span class="tag">Til tjek</span>' : ''}
+    </button></li>`).join('') : '<li class="empty" style="padding:20px">Ingen passer på søgningen.</li>'}</ul></div>`;
+}
+
+function sheetPMember(id){
+  const p = (state.panel.profiles || []).find(x => x.id === id) || state.people.get(id);
+  if (!p) return '';
+  const admin = isAdminRole(), self = id === state.user.id, canMod = !self && (admin || p.role === 'member');
+  const b = (a, l, cls = 'ghost', extra = '') => `<button class="btn ${cls}" data-action="${a}" data-id="${esc(id)}" ${extra}>${l}</button>`;
+  return `<div style="display:flex;gap:14px;align-items:center">${avatar(p, 56)}<div><h3>${esc(p.nickname)}</h3><div class="muted">${ROLE[p.role] || 'Medlem'} · ${p.gender === 'kvinde' ? 'søster' : 'broder'} · ${esc(JOURNEY[p.journey] || '')}</div></div></div>
+    <div class="facts">
+      <div><span class="muted">Oprettet</span>${new Date(p.created_at).toLocaleDateString('da-DK', { day:'numeric', month:'long', year:'numeric' })}</div>
+      <div><span class="muted">Profil</span>${{ pending:'Venter på tjek', review:'Til gennemsyn', blocked:'Stoppet', ok:'Godkendt' }[p.ai_status] || '–'}</div>
+      ${isMuted(p) ? `<div><span class="muted">Pause til</span>${new Date(p.muted_until).toLocaleString('da-DK', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}${p.muted_reason ? ` – ${esc(p.muted_reason)}` : ''}</div>` : ''}
+      ${p.banned ? `<div><span class="muted">Udelukket</span>${esc(p.banned_reason || '')}</div>` : ''}
+    </div>
+    ${p.bio ? `<p style="margin:12px 0 0">${esc(p.bio)}</p>` : ''}
+    <div class="acts">
+      ${canMod && p.ai_status !== 'ok' ? b('p-approve', 'Godkend profilen', '') : ''}
+      ${canMod && p.ai_status !== 'blocked' ? b('p-stop', 'Stop profilen', 'danger') : ''}
+      ${canMod && !p.banned ? `<div class="duo">${b('p-mute', 'Pause 24 t', 'ghost', 'data-hours="24"')}${b('p-mute', 'Pause 7 dage', 'ghost', 'data-hours="168"')}</div>` : ''}
+      ${canMod && isMuted(p) ? b('p-unmute', 'Ophæv pausen') : ''}
+      ${admin && !self && !EMBEDDED ? (p.role === 'member' ? b('p-role', 'Gør til moderator', 'ghost', 'data-role="moderator"') : p.role === 'moderator' ? b('p-role', 'Fjern som moderator', 'ghost', 'data-role="member"') : '') : ''}
+      ${admin && !self && !EMBEDDED ? b('p-code', 'Lav ny login-kode') : ''}
+      ${admin && !self ? (p.banned ? b('p-unban', 'Ophæv udelukkelsen') : b('p-ban', 'Udeluk permanent', 'danger')) : ''}
+      <button class="btn ghost" data-action="closesheet">Luk</button>
+    </div>`;
+}
+
+function viewPosts(){
+  const list = state.announcements || [];
+  return `<form id="annForm" class="panel" style="margin:0 12px">
+      <h3 style="margin:0 0 4px;font-size:19px">Nyt opslag til alle</h3>
+      <p class="hint" style="margin:0 0 6px">Vises øverst på alles forside. Fx en velkomst, en påmindelse om reglerne eller et arrangement.</p>
+      <label class="f" for="atitle">Overskrift</label><input class="input" id="atitle" name="title" required minlength="2" maxlength="80" placeholder="Fx Velkommen til nye medlemmer">
+      <label class="f" for="abody">Tekst</label><textarea class="input" id="abody" name="body" rows="4" required maxlength="1000" placeholder="Skriv venligt og kort."></textarea>
+      <button class="btn wide" style="margin-top:12px">Del opslaget</button>
+    </form>
+    <h3 class="section-title" style="margin-left:16px">Opslag (${list.length})</h3>
+    <div class="stack" style="padding:0 12px 24px">${list.length ? list.map(a => `<article class="ann"><b>${esc(a.title)}</b><p>${esc(a.body).replace(/\n/g, '<br>')}</p>
+      <small class="muted">${esc(a.author ? nick(a.author) : 'Moderator')} · ${fmt(a.created_at)}</small>
+      ${a.author === state.user.id || isAdminRole() ? `<button class="link danger" style="margin-top:6px" data-action="ann-del" data-id="${a.id}">Slet opslaget</button>` : ''}</article>`).join('') : '<p class="muted">Ingen opslag endnu.</p>'}</div>`;
+}
+
+function viewLog(){
+  const log = state.panel.log;
+  if (!log) return '<div class="spin"></div>';
+  if (!log.length) return `<p class="empty">${STAR}Ingen handlinger endnu.</p>`;
+  return `<div class="card-list"><ul class="list" style="padding:0">${log.map(l => `<li class="row" style="cursor:default;align-items:flex-start">
+      <span class="grow"><b>${esc(l.actor ? nick(l.actor) : 'System')}</b> ${esc(l.action)}${l.target ? ` <b>${esc(nick(l.target))}</b>` : ''}${l.detail ? `<small>${esc(l.detail)}</small>` : ''}</span>
+      <span class="muted" style="font-size:12.5px">${fmt(l.created_at)}</span></li>`).join('')}</ul></div>`;
+}
+
+function viewSettings(){
+  const s = state.panel.settings;
+  if (!s) return '<div class="spin"></div>';
+  const team = (state.panel.profiles || []).filter(p => p.role !== 'member');
+  return `<div class="card-center" style="padding-top:0">
+    <div class="panel">
+      <h3 style="margin:0 0 6px;font-size:19px">AI-tjek af profiler</h3>
+      <p class="muted" style="margin:0 0 10px">Når det er slået til, tjekker Claude hver ny eller ændret profil. Tydeligt falske og skræmmende profiler bliver stoppet, og tvivlstilfælde lander under Sager.</p>
+      <p style="margin:0 0 12px"><b>Status:</b> ${s.ai_profile_check ? 'Slået til' : 'Slået fra'}</p>
+      <button class="btn wide ${s.ai_profile_check ? 'ghost' : ''}" data-action="p-ai" data-id="${s.ai_profile_check ? 'off' : 'on'}">${s.ai_profile_check ? 'Slå AI-tjek fra' : 'Slå AI-tjek til'}</button>
+      <p class="hint">Kræver at funktionen <b>check-profile</b> er lagt op i Supabase med din Claude-nøgle (README, trin 7).</p>
+    </div>
+    <h3 class="section-title">Holdet (${team.length})</h3>
+    <div class="card-list" style="margin:0">${team.map(p => `<button class="row" data-action="pmember" data-id="${esc(p.id)}">${avatar(p, 36)}<span class="grow"><b>${esc(p.nickname)}</b><small>${ROLE[p.role]}</small></span></button>`).join('')}</div>
+    <p class="hint">Gør nogen til moderator under Medlemmer → tryk på personen → Gør til moderator. Moderatorer kan godkende og stoppe profiler, give pause i op til 7 dage, slette beskeder og skrive opslag. Kun du kan udelukke, lave nye koder og vælge moderatorer.</p>
+  </div>`;
+}
+
+async function afterPanel(){
+  state.people.set(state.profile.id, state.profile);
+  await Promise.all([loadReports(), loadPanel()]);
+  state.subs.reports = api.subReports(() => { loadReports(); loadPanel(); toast('Ny sag'); });
+}
+async function loadPanel(){
+  try {
+    const [profiles, announcements, log, settings] = await Promise.all([
+      api.allProfiles(), api.announcements(), api.modLog(), isAdminRole() ? api.settings() : Promise.resolve(null)]);
+    state.panel.profiles = profiles; state.announcements = announcements; state.panel.log = log; state.panel.settings = settings;
+    profiles.forEach(p => state.people.set(p.id, p));
+    await ensurePeople(log.flatMap(l => [l.actor, l.target]).concat(announcements.map(a => a.author)));
+  } catch(e){ toast(errMsg(e)); }
+  repaintPanel();
+}
+function repaintPanel(){
+  if (PANEL) render();
+  else if (!inChat() && state.tab === 'mod') render();
+  else drawNav();
+  if (state.sheet && state.sheet.type === 'pmember') drawSheet();
 }
 
 function viewOnboarding(){
@@ -407,7 +732,8 @@ function viewOnboarding(){
     <p class="muted" style="margin-top:0">Andre ser kun det, du skriver her. Et kaldenavn er helt fint.</p>
     <form id="onbForm">
       <label class="f" for="nick">Kaldenavn</label>
-      <input class="input" id="nick" name="nickname" required minlength="2" maxlength="30" placeholder="Fx Yusuf, Amina eller bare M">
+      ${EMBEDDED ? '<input class="input" id="nick" name="nickname" required minlength="2" maxlength="30" placeholder="Fx Yusuf, Amina eller bare M">'
+        : `<input class="input" id="nick" name="nickname" required readonly value="${esc((state.user && state.user.user_metadata && state.user.user_metadata.nickname) || state.newNick || '')}"><p class="hint">Dit kaldenavn er også dit login.</p>`}
       <label class="f">Køn</label>
       <div class="seg">
         <label><input type="radio" name="gender" value="kvinde" required> Kvinde</label>
@@ -470,6 +796,7 @@ function viewRooms(){
       <p>Hvad har du lyst til at tale om i dag?</p>
     </section>
     ${inc ? `<button class="notice" data-action="tab" data-id="friends">${ICON.friends}<span class="grow">${inc === 1 ? `${esc(nick(incoming()[0].requester))} vil gerne være ven med dig` : `${inc} venneanmodninger venter på dig`}</span>${ICON.chev}</button>` : ''}
+    ${viewAnnouncements()}
     <h3 class="group-title">Fællesrum</h3>
     <div class="card-list"><ul class="list" style="padding:0">${common.map(row).join('')}</ul></div>
     ${own.length ? `<h3 class="group-title">${state.profile.gender === 'kvinde' ? 'Kun for søstre' : 'Kun for brødre'}</h3>
@@ -477,6 +804,8 @@ function viewRooms(){
 }
 
 function viewChat(){
+  if (isMuted(state.profile)) return `<div id="msgs" class="msgs"><div class="spin"></div></div>
+  <div class="composer muted-bar">Du har en pause og kan ikke skrive før ${new Date(state.profile.muted_until).toLocaleString('da-DK', { weekday:'short', hour:'2-digit', minute:'2-digit' })}.${state.profile.muted_reason ? ` Begrundelse: ${esc(state.profile.muted_reason)}` : ''}</div>`;
   return `<div id="msgs" class="msgs"><div class="spin"></div></div>
   <form id="composer" class="composer">
     <textarea class="input" name="body" rows="1" maxlength="2000" placeholder="Skriv en besked" aria-label="Besked"></textarea>
@@ -514,10 +843,10 @@ function drawMsgs(force, keepTop){
     const first = sep || prev !== uid;
     const showName = mode !== 'dm' && !mine && first;
     prev = uid; prevDay = day;
-    const canDel = mode === 'room' ? (mine || state.profile.is_admin) : mode === 'group' ? (mine || isOwner(g) || state.profile.is_admin) : false;
+    const canDel = mode === 'room' ? (mine || isMod()) : mode === 'group' ? (mine || isOwner(g)) : false;
     const rkind = mode === 'dm' ? 'dm' : mode === 'group' ? 'gmessage' : 'message';
     return `${sep}<div class="msg ${mine ? 'mine' : ''} ${first ? 'first' : ''}">
-      ${showName ? `<div class="who"><button class="link" data-action="person" data-id="${esc(uid)}">${esc(p.nickname)}</button>${mode === 'room' && p.journey ? `, ${esc(JOURNEY[p.journey].toLowerCase())}` : ''}</div>` : ''}
+      ${showName ? `<div class="who"><button class="link" data-action="person" data-id="${esc(uid)}">${esc(p.nickname)}</button>${p.role && p.role !== 'member' ? ' <span class="modtag">Moderator</span>' : ''}${mode === 'room' && p.journey ? `, ${esc(JOURNEY[p.journey].toLowerCase())}` : ''}</div>` : ''}
       <div class="bubble">${esc(m.body).replace(/\n/g, '<br>')}</div>
       <div class="meta">${clock(m.created_at)}${!mine ? `&nbsp;&nbsp;<button class="link" data-action="report" data-kind="${rkind}" data-id="${m.id}">Rapportér</button>` : ''}${canDel ? `&nbsp;&nbsp;<button class="link" data-action="delmsg" data-id="${m.id}">Slet</button>` : ''}</div>
     </div>`;
@@ -611,7 +940,8 @@ function viewMe(){
     <div style="display:flex;gap:14px;align-items:center">${avatar(p, 64)}<div><h2 style="margin:0;font-size:24px">${esc(p.nickname)}</h2><div class="muted">${esc(JOURNEY[p.journey])}, ${p.gender === 'kvinde' ? 'søster' : 'broder'} · ${friendIds().length} ${friendIds().length === 1 ? 'ven' : 'venner'}</div></div></div>
     <h3 class="section-title">Din profil</h3>
     <form id="meForm" class="panel">
-      <label class="f" style="margin-top:0">Kaldenavn</label><input class="input" name="nickname" required minlength="2" maxlength="30" value="${esc(p.nickname)}">
+      <label class="f" style="margin-top:0">Kaldenavn</label><input class="input" name="nickname" required minlength="2" maxlength="30" value="${esc(p.nickname)}" ${EMBEDDED ? '' : 'readonly'}>
+      ${EMBEDDED ? '' : '<p class="hint">Dit kaldenavn er også dit login og kan ikke ændres.</p>'}
       <label class="f">By</label><input class="input" name="city" list="cities" maxlength="40" value="${esc(p.city || '')}">
       <datalist id="cities">${CITIES.map(c => `<option value="${c}">`).join('')}</datalist>
       <label class="f">Hvor er du på din vej?</label><select class="input" name="journey">${Object.entries(JOURNEY).map(([k, v]) => `<option value="${k}" ${p.journey === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
@@ -631,32 +961,8 @@ function viewMe(){
       <button class="btn danger" data-action="deleteaccount">Slet min konto</button>
     </div>
     ${CONFIG.ABOUT_HTML ? `<h3 class="section-title">Om denne version</h3><div class="rules">${CONFIG.ABOUT_HTML}</div>` : ''}
-    <p class="fine" style="margin-bottom:24px">${state.user.email ? `Logget ind som ${esc(state.user.email)}` : 'Logget ind med din Claude-konto'}</p>
-  </div>`;
-}
-
-function viewMod(){
-  if (!state.reports) return '<div class="spin"></div>';
-  const kindLabel = { message:'Besked i et rum', dm:'Privat besked', profile:'Profil', gmessage:'Besked i en privat gruppe' };
-  const reps = state.reports.map(r => `<div class="report">
-      <div style="font-size:13px" class="muted">${kindLabel[r.kind] || r.kind}, rapporteret af ${esc(nick(r.reporter))} ${fmt(r.created_at)}</div>
-      <div style="display:flex;align-items:center;gap:10px">${r.target_user ? avatar(state.people.get(r.target_user) || { id:r.target_user, nickname:'?' }, 32) : ''}<b>${esc(r.target_user ? nick(r.target_user) : 'Ukendt')}</b></div>
-      ${r.snapshot ? `<blockquote>${esc(r.snapshot)}</blockquote>` : '<div class="muted">Indholdet er allerede slettet.</div>'}
-      ${r.reason ? `<div style="font-size:14.5px"><span class="muted">Begrundelse:</span> ${esc(r.reason)}</div>` : ''}
-      <div class="acts">
-        ${r.kind === 'message' || r.kind === 'gmessage' ? `<button class="btn small danger" data-action="mod-del" data-id="${r.id}">Slet beskeden</button>` : ''}
-        ${r.target_user && r.target_user !== state.user.id ? `<button class="btn small danger" data-action="mod-ban" data-id="${r.id}">Udeluk ${esc(nick(r.target_user))}</button>` : ''}
-        <button class="btn small ghost" data-action="mod-ok" data-id="${r.id}">Luk sagen</button>
-      </div></div>`).join('');
-  const banned = state.banned || [];
-  return `<div class="pad">
-    <h2 class="hello">Moderation</h2>
-    <p class="muted" style="margin:0 0 14px">${!state.reports.length ? 'Ingen åbne sager. Alt er roligt.' : state.reports.length === 1 ? '1 åben sag' : `${state.reports.length} åbne sager`}</p>
-    <div style="display:flex;flex-direction:column;gap:10px">${reps}</div>
-    <h3 class="section-title">Udelukkede medlemmer</h3>
-    ${state.banned === null ? `<button class="btn ghost small" data-action="mod-loadbanned">Vis udelukkede</button>`
-      : banned.length ? `<div class="card-list" style="margin:0">${banned.map(p => `<div class="row" style="cursor:default"><span class="grow"><b>${esc(p.nickname)}</b><small>${esc(p.banned_reason || '')}</small></span><button class="link" data-action="mod-unban" data-id="${esc(p.id)}">Ophæv</button></div>`).join('')}</div>`
-      : '<p class="muted">Ingen er udelukket.</p>'}
+    ${EMBEDDED ? '' : '<h3 class="section-title">Din kode</h3><div class="panel"><p class="muted" style="margin:0 0 10px">Tror du, andre kender din kode? Lav en ny – den gamle holder så op med at virke.</p><button class="btn ghost wide" data-action="changecode">Lav en ny kode</button></div>'}
+    <p class="fine" style="margin-bottom:24px">${EMBEDDED ? 'Logget ind med din Claude-konto' : `Logget ind som ${esc(p.nickname)}`}</p>
   </div>`;
 }
 
@@ -670,6 +976,7 @@ function drawSheet(){
   else if (s.type === 'group') html = sheetGroup();
   else if (s.type === 'newgroup') html = sheetNewGroup();
   else if (s.type === 'addmembers') html = sheetAddMembers();
+  else if (s.type === 'pmember') html = sheetPMember(s.id);
   if (!html){ state.sheet = null; el.classList.remove('open'); return; }
   el.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
   el.classList.add('open');
@@ -693,7 +1000,7 @@ function sheetPerson(id){
                          : `<p class="hint" style="text-align:center;margin:2px 0">${esc(p.nickname)} tager kun imod beskeder fra venner.</p>`;
     }
   }
-  return `<div style="display:flex;gap:14px;align-items:center">${avatar(p, 60)}<div><h3>${esc(p.nickname)}</h3><div class="muted">${esc(JOURNEY[p.journey])}${p.city ? ` i ${esc(p.city)}` : ''}${rel.kind === 'friends' ? ' · Ven' : ''}</div></div></div>
+  return `<div style="display:flex;gap:14px;align-items:center">${avatar(p, 60)}<div><h3>${esc(p.nickname)}${p.role && p.role !== 'member' ? ' <span class="modtag">Moderator</span>' : ''}</h3><div class="muted">${esc(JOURNEY[p.journey])}${p.city ? ` i ${esc(p.city)}` : ''}${rel.kind === 'friends' ? ' · Ven' : ''}</div></div></div>
     ${p.bio ? `<p style="margin:16px 0 10px">${esc(p.bio)}</p>` : '<div style="height:12px"></div>'}
     ${p.interests?.length ? `<div class="ints">${p.interests.map(i => `<span>${esc(i)}</span>`).join('')}</div>` : ''}
     <div class="acts">
@@ -910,27 +1217,33 @@ async function loadReports(){
     state.reports = await api.openReports();
     await ensurePeople(state.reports.flatMap(r => [r.reporter, r.target_user]));
   } catch(e){ toast(errMsg(e)); state.reports = []; }
-  if (!inChat() && state.tab === 'mod') render(); else drawNav();
+  repaintPanel();
 }
 
-function ask({ title, text = '', ok = 'OK', danger = false, input = null, match = null }){
+function ask({ title, text = '', ok = 'OK', danger = false, input = null, match = null, copy = null, cancel = 'Annuller' }){
   return new Promise(resolve => {
     let el = $('#dialog');
     if (!el){ el = document.createElement('div'); el.id = 'dialog'; (ROOT === document ? document.body : ROOT).appendChild(el); }
     const prev = ROOT.activeElement || document.activeElement;
     el.innerHTML = `<div class="dlg" role="alertdialog" aria-modal="true" aria-labelledby="dlgT">
       <h3 id="dlgT">${esc(title)}</h3>${text ? `<p class="muted">${esc(text)}</p>` : ''}
+      ${copy ? `<div class="codebox"><b>${esc(copy)}</b><button type="button" class="btn small ghost" data-dlg="copy">Kopiér</button></div>` : ''}
       ${input || match ? `<input class="input" id="dlgIn" autocomplete="off" maxlength="${(input && input.max) || 500}" placeholder="${esc((input && input.placeholder) || (match ? 'Skriv ' + match : ''))}" value="${esc((input && input.value) || '')}">` : ''}
-      <div class="duo"><button type="button" class="btn ghost" data-dlg="no">Annuller</button><button type="button" class="btn ${danger ? 'danger-fill' : ''}" data-dlg="yes" ${match ? 'disabled' : ''}>${esc(ok)}</button></div></div>`;
+      <div class="duo">${cancel ? `<button type="button" class="btn ghost" data-dlg="no">${esc(cancel)}</button>` : ''}<button type="button" class="btn ${danger ? 'danger-fill' : ''}" data-dlg="yes" ${match ? 'disabled' : ''}>${esc(ok)}</button></div></div>`;
     el.classList.add('open');
     const inp = el.querySelector('#dlgIn'), yes = el.querySelector('[data-dlg=yes]');
     const done = v => { el.classList.remove('open'); el.innerHTML = ''; el.onclick = el.onkeydown = el.oninput = null; try { prev && prev.focus(); } catch(_){} resolve(v); };
     const accept = () => { if (yes.disabled) return; done(input ? inp.value.trim() : true); };
     el.oninput = () => { if (match) yes.disabled = inp.value.trim().toUpperCase() !== match; };
-    el.onclick = e => { const d = e.target.closest('[data-dlg]'); if (e.target === el) done(input ? null : false); else if (d) d.dataset.dlg === 'yes' ? accept() : done(input ? null : false); };
+    el.onclick = e => { const d = e.target.closest('[data-dlg]'); if (d && d.dataset.dlg === 'copy'){ copyText(copy); return; } if (e.target === el){ if (cancel) done(input ? null : false); } else if (d) d.dataset.dlg === 'yes' ? accept() : done(input ? null : false); };
     el.onkeydown = e => { if (e.key === 'Escape'){ e.stopPropagation(); done(input ? null : false); } if (e.key === 'Enter' && e.target === inp){ e.preventDefault(); e.stopPropagation(); accept(); } };
     setTimeout(() => (inp || yes).focus(), 30);
   });
+}
+
+async function copyText(t){
+  try { await navigator.clipboard.writeText(t); toast('Koden er kopieret.'); }
+  catch(e){ toast('Markér koden og kopiér den selv.'); }
 }
 
 function download(name, data){
@@ -1170,7 +1483,7 @@ ROOT.addEventListener('click', async e => {
         leaveChat(); state.tab = id; render();
         if (id === 'friends' && state.friendsTab === 'find' && !state.members) loadPeople();
         if (id === 'chats'){ loadThreads(); loadGroups(); }
-        if (id === 'mod') loadReports();
+        if (id === 'mod'){ loadReports(); loadPanel(); }
         break;
       case 'ftab': state.friendsTab = id; render(); if (id === 'find') loadPeople(); break;
       case 'room': openRoom(id); break;
@@ -1283,30 +1596,70 @@ ROOT.addEventListener('click', async e => {
         break;
       }
 
-      // moderation
-      case 'mod-del': {
+      // login
+      case 'authtab': state.authTab = id; render(); setTimeout(() => $('#app input')?.focus(), 30); break;
+      case 'newnick': state.newCode = ''; render(); break;
+      case 'copycode': copyText(state.newCode); break;
+      case 'recheck': runCheck(); break;
+      case 'appeal':
+        await api.report('profile', state.user.id, 'Klage: min profil blev stoppet, men jeg mener, det er en fejl.');
+        toast('Tak. En moderator ser på din profil.'); break;
+      case 'changecode': {
+        const code = makeCode();
+        const okd = await ask({ title:'Din nye kode', text:'Gem den et sikkert sted, før du trykker Brug koden. Den gamle kode holder op med at virke.', copy:code, ok:'Brug koden' });
+        if (!okd) return;
+        await api.changeCode(code); toast('Din nye kode er gemt.'); break;
+      }
+
+      // moderatorpanel
+      case 'ptab': state.panelTab = id; render(); if (id !== 'posts') loadPanel(); if (id === 'cases') loadReports(); break;
+      case 'pf': state.panel.filter = id; render(); break;
+      case 'pmember': state.sheet = { type:'pmember', id }; drawSheet(); break;
+      case 'p-approve': await api.modReview(id, true); toast(`${nick(id)} er godkendt.`); await Promise.all([loadPanel(), loadReports()]); break;
+      case 'p-stop': {
+        const reason = await ask({ title:`Stop ${nick(id)}s profil?`, text:'Profilen bliver skjult, og personen kan ikke skrive, før den er rettet og godkendt. Skriv kort hvorfor – personen kan se det.', input:{ placeholder:'Fx Profilen ligner reklame', max:200 }, ok:'Stop profilen', danger:true });
+        if (reason === null) return;
+        await api.modReview(id, false, reason); toast('Profilen er stoppet.'); await loadPanel(); break;
+      }
+      case 'p-mute': {
+        const hours = +b.dataset.hours;
+        const reason = await ask({ title:`Giv ${nick(id)} pause i ${hours === 24 ? '24 timer' : '7 dage'}?`, text:'Personen kan læse, men ikke skrive, i pausen. Skriv kort hvorfor – personen kan se det.', input:{ placeholder:'Fx Gentagne grove beskeder', max:200 }, ok:'Giv pause' });
+        if (reason === null) return;
+        await api.modMute(id, hours, reason); toast('Pausen er givet.'); await loadPanel(); break;
+      }
+      case 'p-unmute': await api.modMute(id, 0); toast('Pausen er ophævet.'); await loadPanel(); break;
+      case 'p-role': {
+        const role = b.dataset.role;
+        if (!(await ask({ title: role === 'moderator' ? `Gør ${nick(id)} til moderator?` : `Fjern ${nick(id)} som moderator?`, text: role === 'moderator' ? 'Moderatorer kan godkende og stoppe profiler, give pause, slette beskeder og skrive opslag. De kan logge ind i panelet.' : 'Personen mister adgangen til panelet.', ok: role === 'moderator' ? 'Gør til moderator' : 'Fjern' }))) return;
+        await api.adminRole(id, role); toast('Rollen er ændret.'); await loadPanel(); break;
+      }
+      case 'p-code': {
+        if (!(await ask({ title:`Lav ny login-kode til ${nick(id)}?`, text:'Den gamle kode holder op med at virke. Giv kun koden til personen, hvis du er sikker på, at det er dem.', ok:'Lav ny kode' }))) return;
+        const code = await api.adminResetCode(id);
+        await ask({ title:`Ny kode til ${nick(id)}`, text:'Koden vises kun nu.', copy:code, ok:'Færdig', cancel:null }); break;
+      }
+      case 'p-ban': {
+        const reason = await ask({ title:`Udeluk ${nick(id)} permanent?`, text:'Personen kan ikke længere bruge fællesskabet. Skriv en kort begrundelse – personen kan se den.', input:{ placeholder:'Fx Trusler mod andre medlemmer', max:200 }, ok:'Udeluk', danger:true });
+        if (reason === null) return;
+        await api.adminBan(id, true, reason); toast(`${nick(id)} er udelukket.`); await Promise.all([loadPanel(), loadReports()]); break;
+      }
+      case 'p-unban':
+        if (!(await ask({ title:'Ophæv udelukkelsen?', ok:'Ophæv' }))) return;
+        await api.adminBan(id, false); toast('Udelukkelsen er ophævet.'); await loadPanel(); break;
+      case 'p-resolve': await api.modResolve(id); await loadReports(); break;
+      case 'p-del': {
         const r = state.reports.find(x => x.id === +id); if (!r) return;
         if (!(await ask({ title:'Slet beskeden for alle?', ok:'Slet', danger:true }))) return;
-        if (r.kind === 'gmessage') await api.delGroupMessage(+r.target_id); else await api.delMessage(+r.target_id);
-        await api.resolveAllFor(r.kind, r.target_id);
-        toast('Beskeden er slettet.'); loadReports();
-        break;
+        await api.modDelete(r.kind, r.target_id); toast('Beskeden er slettet.'); await loadReports(); break;
       }
-      case 'mod-ban': {
-        const r = state.reports.find(x => x.id === +id); if (!r) return;
-        const reason = await ask({ title:`Udeluk ${nick(r.target_user)}?`, text:'Skriv en kort begrundelse. Den vises for brugeren.', input:{ placeholder:'Fx gentagen spam', max:200 }, ok:'Udeluk', danger:true });
-        if (reason === null) return;
-        await api.setBan(r.target_user, true, reason.trim().slice(0, 200) || 'Brud på husreglerne');
-        await api.resolveReport(r.id);
-        state.banned = null; toast(`${nick(r.target_user)} er udelukket.`); loadReports();
-        break;
+      case 'p-ai': {
+        const on = id === 'on';
+        if (!(await ask({ title: on ? 'Slå AI-tjek til?' : 'Slå AI-tjek fra?', text: on ? 'Nye og ændrede profiler bliver tjekket af Claude, før de bliver synlige.' : 'Nye profiler bliver synlige med det samme uden tjek.', ok: on ? 'Slå til' : 'Slå fra' }))) return;
+        await api.adminAi(on); await loadPanel(); toast(on ? 'AI-tjek er slået til.' : 'AI-tjek er slået fra.'); break;
       }
-      case 'mod-ok': await api.resolveReport(+id); loadReports(); break;
-      case 'mod-loadbanned': state.banned = await api.bannedUsers(); render(); break;
-      case 'mod-unban':
-        if (!(await ask({ title:'Ophæv udelukkelsen?', ok:'Ophæv' }))) return;
-        await api.setBan(id, false); state.banned = await api.bannedUsers(); render(); toast('Udelukkelsen er ophævet.');
-        break;
+      case 'ann-del':
+        if (!(await ask({ title:'Slet opslaget?', ok:'Slet', danger:true }))) return;
+        await api.deleteAnnouncement(+id); await loadPanel(); break;
     }
   } catch(err){ b.disabled = false; toast(errMsg(err)); }
 });
@@ -1320,23 +1673,25 @@ async function handleForm(f){
   const d = Object.fromEntries(new FormData(f));
   try {
     if (f.id === 'loginForm'){
-      const email = (d.email || '').trim().toLowerCase();
-      if (!validEmail(email)){ toast('Skriv en gyldig e-mail.'); $('#email')?.focus(); return; }
-      state.loginEmail = email; state.code = $('#code')?.value || '';
-      state.busy = 'send'; render();
-      try { await api.sendCode(email); state.loginStep = 'code'; toast('Koden er sendt. Tjek din e-mail.'); }
-      finally { state.busy = false; render(); setTimeout(() => $('#code')?.focus(), 30); }
-    }
-    if (f.id === 'codeForm'){
-      const email = ($('#email')?.value || state.loginEmail).trim().toLowerCase();
-      const code = (d.code || '').replace(/\D/g, '');
-      if (!validEmail(email)){ toast('Skriv først din e-mail i felt 1.'); $('#email')?.focus(); return; }
-      if (code.length < 6){ toast('Koden skal være 6 cifre. Tryk "Send kode", hvis du ikke har fået en.'); $('#code')?.focus(); return; }
-      state.loginEmail = email; state.code = code;
-      state.busy = 'verify'; render();
-      try { await api.verifyCode(email, code); state.code = ''; }
-      catch(err){ state.busy = false; render(); toast(errMsg(err, 'otp')); return; }
+      const nickname = (d.nickname || '').trim(), code = normCode(d.code);
+      if (nickname.length < 2){ toast('Skriv dit kaldenavn.'); $('#lnick')?.focus(); return; }
+      if (code.length < 10){ toast('Koden har 10 tegn, fx ABCDE-23456.'); $('#lcode')?.focus(); return; }
+      state.newNick = nickname; state.busy = true; render();
+      try { await api.signIn(nickname, code); }
+      catch(err){ state.busy = false; render(); toast(errMsg(err, 'login')); return; }
       state.busy = false;
+    }
+    if (f.id === 'newNickForm'){
+      const nickname = (d.nickname || '').trim().replace(/\s+/g, ' ');
+      if (nickname.length < 2 || nickname.length > 30){ toast('Kaldenavnet skal have 2-30 tegn.'); $('#nnick')?.focus(); return; }
+      state.newNick = nickname; state.newCode = makeCode(); render();
+    }
+    if (f.id === 'newCodeForm'){
+      if (!f.querySelector('[name=saved]').checked){ toast('Bekræft, at du har gemt din kode.'); return; }
+      state.busy = true; render();
+      try { await api.signUp(state.newNick, state.newCode); }
+      catch(err){ state.busy = false; render(); toast(errMsg(err, 'signup')); return; }
+      state.busy = false; state.newCode = '';
     }
     if (f.id === 'onbForm'){
       const btn = f.querySelector('button.btn'); btn.disabled = true;
@@ -1349,6 +1704,7 @@ async function handleForm(f){
       } catch(err){ btn.disabled = false; toast(errMsg(err)); return; }
       // Nur (guiden) tiltaler dig som bror eller søster – brug det køn, du lige har valgt
       store.set('nur_addr', d.gender === 'kvinde' ? 'soester' : 'bror');
+      if (state.profile.ai_status === 'pending'){ runCheck(); return; }
       await afterProfile(); render();
     }
     if (f.id === 'meForm'){
@@ -1357,7 +1713,16 @@ async function handleForm(f){
         bio:d.bio.trim() || null, interests:parseInterests(d.interests), dm_pref:d.dm_pref,
       });
       state.people.set(state.profile.id, state.profile); state.members = null;
+      if (state.profile.ai_status === 'pending'){ toast('Profilen er gemt. Vi tjekker den lige.'); runCheck(); return; }
       render(); toast('Profilen er gemt.');
+    }
+    if (f.id === 'stopForm'){
+      state.profile = await api.updateProfile({ city:(d.city || '').trim() || null, bio:(d.bio || '').trim() || null, interests:parseInterests(d.interests) });
+      if (state.profile.ai_status === 'pending') runCheck(); else { toast('Profilen er gemt.'); render(); }
+    }
+    if (f.id === 'annForm'){
+      await api.postAnnouncement(d.title.trim(), d.body.trim());
+      f.reset(); toast('Opslaget er delt med alle.'); await loadPanel();
     }
     if (f.id === 'groupForm'){
       const btn = f.querySelector('button.btn'); btn.disabled = true;
@@ -1388,13 +1753,13 @@ async function handleForm(f){
       } catch(err){ ta.value = body; toast(errMsg(err, state.dmWith ? 'dm' : null)); }
       ta.focus();
     }
-  } catch(err){ if (f.id === 'loginForm' || f.id === 'codeForm'){ state.busy = false; render(); } toast(errMsg(err)); }
+  } catch(err){ if (['loginForm','newNickForm','newCodeForm'].includes(f.id)){ state.busy = false; render(); } toast(errMsg(err)); }
 }
 
 // Formularer håndteres via klik/Enter (virker også i indlejrede visninger og app-webviews)
 function trySubmit(f){
   if (!f || f.dataset.busy) return;
-  if (!['loginForm','codeForm'].includes(f.id) && !f.reportValidity()) return;
+  if (!['loginForm','newNickForm','newCodeForm'].includes(f.id) && !f.reportValidity()) return;
   f.dataset.busy = '1';
   handleForm(f).finally(() => { delete f.dataset.busy; });
 }
@@ -1414,18 +1779,21 @@ ROOT.addEventListener('keydown', e => {
 });
 ROOT.addEventListener('input', e => {
   if (e.target.id === 'q'){ state.q = e.target.value; drawPeople(); }
+  if (e.target.id === 'pq'){ state.panel.q = e.target.value; const pos = e.target.selectionStart; render(); const el = $('#pq'); if (el){ el.focus(); el.setSelectionRange(pos, pos); } }
   if (e.target.matches('#composer textarea')){ e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'; }
 });
 
 // Hent det seneste igen når appen kommer i forgrunden / forbindelsen vender tilbage
 async function refresh(){
   if (!state.profile || state.profile.banned) return;
+  if (PANEL){ if (isMod()){ loadReports(); loadPanel(); } return; }
+  if (state.profile.ai_status === 'pending' || state.profile.ai_status === 'blocked'){ reloadMe(); return; }
   if (state.roomId) loadRoom(false);
   else if (state.dmWith) loadDM();
   else if (state.groupId) loadGroupMsgs(false);
   loadThreads(); loadGroups();
   api.friendships().then(f => { state.friendships = f; drawNav(); }).catch(() => {});
-  if (state.profile.is_admin) loadReports();
+  if (EMBEDDED && isMod()){ loadReports(); loadPanel(); }
   try {
     const p = await api.myProfile(state.user.id);
     if (!p){ await api.signOut(); return setUser(null); }
@@ -1444,6 +1812,6 @@ if (CONFIGURED){
   api.onAuth(u => setUser(u));
   api.session().then(u => setUser(u)).catch(() => setUser(null));
 }
-if ('serviceWorker' in navigator && location.protocol === 'https:' && !PREVIEW && !EMBEDDED){
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !PREVIEW && !EMBEDDED && !PANEL){
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
