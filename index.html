@@ -1,0 +1,987 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0B1220">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="GetTogether">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>GetTogether</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Nur – a reminder for new Muslims and a door for anyone who wants to explore, ask and learn.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus&family=Hanken+Grotesk:wght@400;500;600&family=Amiri:wght@400;700&display=swap">
+<style>
+/* Layout: app i én kolonne (max 680px) med bund-navigation; nattehimmel og guld som identitet, geometrisk stjernemønster bag forsiden */
+:root{
+  --bg:#0B1220; --surface:#121B2E; --surface2:#18243B; --ink:#EDE7DA; --muted:#9AA5B8; --line:#243150;
+  --gold:#D4AF6A; --goldsoft:rgba(212,175,106,.14); --teal:#6CC0B4;
+  --ok:#6CC0B4; --warn:#E3B95C; --deb:#B9A3E8; --scrim:rgba(5,9,18,.6);
+  --display:"Marcellus","Cormorant Garamond",Georgia,serif;
+  --body:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --arabic:"Amiri","Noto Naskh Arabic","Geeza Pro",serif;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --bg:#ECEFEA; --surface:#FFFFFF; --surface2:#F5F6F2; --ink:#142030; --muted:#566273; --line:#D3D9D0;
+  --gold:#94701F; --goldsoft:rgba(148,112,31,.10); --teal:#1E6D64; --ok:#1E6D64; --warn:#94650E; --deb:#5E4A93; --scrim:rgba(20,32,48,.35); color-scheme:light}}
+:root[data-theme="light"]{
+  --bg:#ECEFEA; --surface:#FFFFFF; --surface2:#F5F6F2; --ink:#142030; --muted:#566273; --line:#D3D9D0;
+  --gold:#94701F; --goldsoft:rgba(148,112,31,.10); --teal:#1E6D64; --ok:#1E6D64; --warn:#94650E; --deb:#5E4A93; --scrim:rgba(20,32,48,.35); color-scheme:light}
+*{box-sizing:border-box}
+html,body{background:var(--bg)}
+body{margin:0;color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:20px calc(96px + env(safe-area-inset-bottom,0px))}
+[hidden]{display:none!important}
+.app{max-width:680px;margin:0 auto}
+h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance;letter-spacing:.01em}
+h2{font-size:1.75rem;line-height:1.15}
+h3{font-size:1.2rem}
+p{margin:0}
+.eyebrow{font-size:.72rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
+[dir="rtl"] .eyebrow{letter-spacing:0}
+.muted{color:var(--muted)}
+.view{display:flex;flex-direction:column;gap:18px}
+.ar{font-family:var(--arabic);direction:rtl;text-align:right;line-height:2;margin:0}
+.tr{font-size:.85rem;color:var(--muted);font-style:italic;direction:ltr;text-align:left}
+button{font-family:var(--body)}
+:focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:6px}
+
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:15;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin:0 0 10px;padding:6px 0;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.top>#open-set{justify-self:end;grid-column:3;grid-row:1}
+.top>#player,.top>#more-music{grid-column:2;grid-row:1}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:16;background:var(--bg)}
+.player{justify-self:center;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px;max-width:200px;min-width:0}
+.player button{width:32px;height:32px;flex:none;border-radius:50%;border:0;background:var(--gold);color:var(--bg);display:grid;place-items:center;cursor:pointer}
+.player span{font-size:.78rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.player i{display:block;height:2px;background:var(--gold);width:0;border-radius:2px;position:absolute;left:14px;right:14px;bottom:2px}
+.counter{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;font-size:.78rem;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:4px 12px;background:color-mix(in srgb,var(--surface) 70%,transparent)}
+.counter b{color:var(--gold);font-variant-numeric:tabular-nums}
+.deep{border-top:1px dashed var(--line);padding-top:10px;white-space:pre-wrap;font-size:.95rem}
+.deepbtn{justify-self:start;background:none;border:1px solid var(--gold);color:var(--gold);border-radius:999px;padding:5px 12px;font-size:.8rem;cursor:pointer}
+.addr{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.85rem;color:var(--muted)}
+.hero{position:relative;overflow:hidden;border-radius:22px;border:1px solid var(--line);
+  background:radial-gradient(120% 90% at 50% 0%,var(--surface2),var(--surface));padding:28px 22px 26px;display:flex;flex-direction:column;gap:14px}
+.hero canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.55}
+.hero>*:not(canvas){position:relative}
+.brand{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand h1{font-size:clamp(1.9rem,8vw,2.6rem);line-height:1;color:var(--gold);display:grid;gap:6px}
+.brand .by{font-family:var(--body);font-size:.8rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.brand .arname{font-family:var(--arabic);font-size:2.2rem;color:var(--gold);line-height:1}
+.hero .ar{font-size:clamp(1.7rem,6.5vw,2.4rem);color:var(--ink)}
+.hero .meaning{font-family:var(--display);font-size:1.25rem;line-height:1.45}
+.ref{display:inline-flex;align-items:center;gap:8px;font-size:.8rem;color:var(--muted)}
+.ref b{color:var(--gold);font-weight:600}
+.rowbtn{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:.85rem;cursor:pointer}
+.ghost:hover{border-color:var(--gold)}
+.gold{background:var(--gold);color:var(--bg);border:0;border-radius:999px;padding:10px 18px;font-weight:600;font-size:.92rem;cursor:pointer}
+.gold:disabled,.ghost:disabled{opacity:.5;cursor:default}
+
+.doors{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media (max-width:520px){.doors{grid-template-columns:1fr}}
+.door{text-align:start;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;cursor:pointer;color:var(--ink);display:flex;flex-direction:column;gap:6px}
+.door:hover{border-color:var(--gold)}
+.door .ic{font-family:var(--arabic);font-size:1.6rem;color:var(--gold);line-height:1}
+.door span:last-child{font-size:.88rem;color:var(--muted)}
+.hadith{border-inline-start:2px solid var(--gold);padding-block:4px;padding-inline-start:16px;display:flex;flex-direction:column;gap:6px}
+.hadith p:first-of-type{font-family:var(--display);font-size:1.12rem;line-height:1.5}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.cardhead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.check{flex:none;background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:4px 10px;font-size:.75rem;cursor:pointer}
+.check[aria-pressed="true"]{background:var(--goldsoft);border-color:var(--gold);color:var(--gold)}
+.progress{display:flex;align-items:center;gap:12px}
+.bar{flex:1;height:6px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--gold);border-radius:99px;transition:width .4s}
+ol,ul{margin:0;padding-inline-start:1.25em;display:grid;gap:4px}
+.cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.cmp h4{margin:0 0 6px;font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold)}
+.tblwrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.95rem}
+th,td{text-align:start;padding:8px 10px 8px 0;border-bottom:1px solid var(--line)}
+th{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td:last-child{font-variant-numeric:tabular-nums;color:var(--gold)}
+.vers{display:grid;grid-template-columns:30px 1fr;gap:10px;padding:12px 0;border-top:1px solid var(--line)}
+.vers>div{min-width:0;display:grid;gap:4px}
+.vers .ar{font-size:1.55rem}
+.nr{width:26px;height:26px;border:1px solid var(--gold);color:var(--gold);transform:rotate(45deg);display:grid;place-items:center;font-size:.72rem;margin-top:12px}
+.nr span{transform:rotate(-45deg)}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chat{display:flex;flex-direction:column;gap:10px}
+.msg{max-width:88%;padding:11px 15px;border-radius:16px;white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+.msg.u{align-self:flex-end;background:var(--gold);color:var(--bg)}
+.msg.a{align-self:flex-start;background:var(--surface);border:1px solid var(--line)}
+.msg.wait{color:var(--muted);font-style:italic}
+.composer{display:flex;gap:8px;align-items:flex-end;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:8px}
+.composer textarea{flex:1;min-width:0;border:0;background:transparent;resize:none;padding:6px 8px}
+.composer textarea:focus-visible{outline:none}
+textarea,input,select{font:inherit;color:var(--ink);background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:9px 11px;width:100%}
+label{display:grid;gap:5px;font-size:.8rem;color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+.filters{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.chip{flex:none;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:.82rem;cursor:pointer;white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:var(--bg)}
+.tl{display:flex;flex-direction:column;position:relative;padding-inline-start:22px}
+.tl::before{content:"";position:absolute;inset-inline-start:6px;top:8px;bottom:8px;width:1px;background:linear-gradient(var(--gold),transparent)}
+.entry{position:relative;padding-bottom:14px}
+.entry::before{content:"";position:absolute;inset-inline-start:-20px;top:20px;width:9px;height:9px;transform:rotate(45deg);background:var(--bg);border:1.5px solid var(--gold)}
+.meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:.78rem;color:var(--muted)}
+.pill{font-size:.68rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:2px 9px;border-radius:99px;border:1px solid currentColor}
+.p-kilde{color:var(--ok)} .p-tradition{color:var(--warn)} .p-debat{color:var(--deb)}
+.src{font-size:.8rem;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px;overflow-wrap:anywhere}
+.tags{display:flex;flex-wrap:wrap;gap:6px;font-size:.75rem;color:var(--teal)}
+.del{margin-inline-start:auto;background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:2px 8px;font-size:.72rem;cursor:pointer}
+.scan{background:linear-gradient(160deg,var(--surface2),var(--surface));border:1px solid var(--gold);border-radius:18px;padding:18px;display:grid;gap:12px}
+.drop{border:1.5px dashed var(--line);border-radius:12px;padding:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;cursor:pointer}
+.drop:hover{border-color:var(--gold)}
+.row2{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.status{font-size:.88rem;min-height:1.3em;color:var(--muted)}
+.status.err{color:var(--gold)}
+
+nav.bottom{position:fixed;left:0;right:0;bottom:0;z-index:20;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);
+  padding:8px max(16px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+nav.bottom div{max-width:680px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+nav.bottom button>span:last-child{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
+.door.wide{grid-column:1/-1;flex-direction:row;align-items:center;gap:14px;border-color:var(--gold);background:linear-gradient(160deg,var(--surface2),var(--surface))}
+.door.wide>span.txt{display:flex;flex-direction:column;gap:4px;flex:1}
+.door.wide .go{color:var(--gold);font-size:.88rem;white-space:nowrap}
+nav.bottom button{background:none;border:0;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;cursor:pointer;font-size:.74rem;border-radius:12px}
+nav.bottom button .g{font-family:var(--arabic);font-size:1.25rem;line-height:1.1}
+nav.bottom button[aria-current="page"]{color:var(--gold);background:var(--goldsoft)}
+.foot{font-size:.82rem;color:var(--muted);border-top:1px solid var(--line);padding-top:14px;margin-top:20px}
+
+.sheet{position:fixed;inset:0;z-index:40;background:var(--scrim);display:flex;align-items:flex-end;justify-content:center}
+.sheet>div{width:100%;max-width:680px;max-height:90%;overflow:auto;background:var(--surface);border:1px solid var(--line);border-bottom:0;border-radius:22px 22px 0 0;
+  padding:22px max(18px,env(safe-area-inset-right,0px)) calc(22px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));display:grid;gap:16px}
+.terms{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.term{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:4px;min-width:0}
+.term b{font-family:var(--display);font-weight:400;font-size:1.1rem;color:var(--gold)}
+.term .ar{font-size:1.15rem;line-height:1.6;text-align:start}
+.term p{font-size:.92rem}
+.helpbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--goldsoft);border:1px solid var(--gold);border-radius:16px;padding:14px 16px;margin-top:20px}
+.basisbtn{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface2);border:1px solid var(--gold);border-radius:16px;padding:16px;color:var(--ink);cursor:pointer;text-align:start}
+.helpbody{display:grid;gap:14px}
+.helpbody section{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;display:grid;gap:8px}
+.helpbody section.care{border-color:var(--gold)}
+.helpbody h3{color:var(--gold)}
+.know{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.know li{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.know li b{display:block;font-family:var(--display);font-weight:400;font-size:1.08rem;margin-bottom:2px}
+.flowcta{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;background:linear-gradient(135deg,var(--surface2),var(--surface));border:1px solid var(--gold);border-radius:20px;padding:16px 18px;color:var(--ink);cursor:pointer;text-align:start;width:100%}
+.flowcta svg{width:54px;height:54px}
+.flow{position:fixed;inset:0;z-index:55;background:var(--bg);display:flex;flex-direction:column;overflow-y:auto;
+  padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.flow>div{max-width:620px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:16px;flex:1}
+.ftop{display:flex;align-items:center;gap:12px}
+.ftop .bar{flex:1}
+.fig{display:grid;place-items:center;height:150px}
+.fig svg{height:150px;width:auto}
+.fstep{display:grid;gap:8px;text-align:center}
+.fstep h2{font-size:1.6rem}
+.fsay{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;display:grid;gap:8px}
+.fsay .ar{font-size:clamp(1.5rem,6vw,2.1rem);text-align:center;line-height:2}
+.fsay .tr{text-align:center}
+.fsay .mean{text-align:center;font-family:var(--display);font-size:1.1rem}
+.times{justify-self:center;font-size:.78rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--gold)}
+.fnav{display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-top:auto}
+.fnav .gold{padding:14px}
+.choose{display:grid;gap:10px}
+.choose button{display:flex;justify-content:space-between;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;color:var(--ink);cursor:pointer;font-size:1rem}
+.choose button[aria-pressed="true"]{border-color:var(--gold);background:var(--goldsoft)}
+.choose b{font-family:var(--display);font-weight:400;font-size:1.15rem}
+.toggle{display:flex;align-items:center;gap:10px;font-size:.95rem;color:var(--ink)}
+.toggle input{width:20px;height:20px;accent-color:var(--gold)}
+.langs{display:flex;flex-wrap:wrap;gap:8px;max-height:220px;overflow-y:auto;padding:2px}
+.loader{position:fixed;inset:0;z-index:60;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:grid;place-items:center;
+  padding:24px max(24px,env(safe-area-inset-right,0px)) 24px max(24px,env(safe-area-inset-left,0px))}
+.loader>div{display:grid;justify-items:center;gap:18px;text-align:center;max-width:320px;width:100%}
+.star{width:84px;height:84px;position:relative}
+.star i{position:absolute;inset:14px;border:1.5px solid var(--gold);border-radius:4px}
+.star i:nth-child(2){transform:rotate(45deg)}
+.star b{position:absolute;inset:34px;border-radius:50%;background:var(--gold);opacity:.85}
+.loader h3{font-size:1.35rem}
+.lbar{width:100%;height:4px;border-radius:99px;background:var(--line);overflow:hidden}
+.lbar i{display:block;height:100%;width:0;background:var(--gold);border-radius:99px;transition:width .5s ease}
+.lbar.indef i{width:35%;animation:slide 1.2s ease-in-out infinite}
+@media (prefers-reduced-motion:no-preference){.star{animation:spin 6s linear infinite}.star b{animation:pulse 1.6s ease-in-out infinite}}
+@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{50%{transform:scale(.6);opacity:.4}}@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(290%)}}
+@media (prefers-reduced-motion:no-preference){.view{animation:in .35s ease both}@keyframes in{from{opacity:.4;transform:translateY(6px)}to{opacity:1;transform:none}}}
+</style>
+</head>
+<body>
+
+
+<div class="app">
+<div class="top"><button class="ghost" id="install" type="button" hidden style="justify-self:start;grid-column:1;grid-row:1" data-i="installBtn"></button><div class="player" id="player" hidden><button type="button" id="pl-btn" aria-label="Play"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path id="pl-ic" d="M3 1.5v11l9-5.5z" fill="currentColor"/></svg></button></div><button class="ghost" id="open-set" type="button" aria-haspopup="dialog">🌐 <span id="langname">Dansk</span></button></div>
+
+<section class="view" id="v-hjem">
+  <div class="hero">
+    <canvas id="pattern" aria-hidden="true"></canvas>
+    <div class="brand"><h1>GetTogether<small class="by">by Malik</small></h1><span class="arname" lang="ar">نور</span></div>
+    <div class="counter" id="counter" hidden><span id="c-me"></span><span aria-hidden="true">·</span><span id="c-all"></span></div>
+    <p class="muted" style="max-width:46ch" data-i="tagline"></p>
+    <div class="eyebrow" style="margin-top:8px" data-i="today"></div>
+    <p class="ar" lang="ar" id="d-ar"></p>
+    <p class="meaning" id="d-mean"></p>
+    <div class="rowbtn" style="justify-content:space-between">
+      <span class="ref"><span data-i="quran"></span> <b id="d-ref"></b></span>
+      <button class="ghost" id="d-next" type="button" data-i="nextR"></button>
+    </div>
+  </div>
+<button class="flowcta" type="button" data-flow="1"><svg viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="28" fill="none" stroke="var(--gold)" stroke-width="1.2"/><circle cx="30" cy="17" r="4.5" fill="none" stroke="var(--gold)" stroke-width="2"/><path d="M30 22v15M30 37l-6 13M30 37l6 13M30 27l-7 5M30 27l7 5" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round"/></svg><span><span class="eyebrow" data-i="flowEy"></span><h3 data-i="flowCta" style="margin-top:4px"></h3><span class="muted" style="font-size:.88rem" data-i="flowCtaSub"></span></span><span class="gold" style="pointer-events:none" data-i="flowGo"></span></button>
+  <div class="doors">
+    <button class="door" data-go="laer" type="button"><span class="ic">تعلّم</span><h3 data-i="nav_laer"></h3><span data-i="door1"></span></button>
+    <button class="door" data-go="spoerg" type="button"><span class="ic">اسأل</span><h3 data-i="door2t"></h3><span data-i="door2"></span></button>
+    <button class="door" data-go="undersoeg" type="button"><span class="ic">ابحث</span><h3 data-i="nav_undersoeg"></h3><span data-i="door3"></span></button>
+    <button class="door wide" data-href="faellesskab/" type="button"><span class="ic">معًا</span><span class="txt"><h3 data-i="door4t"></h3><span class="muted" style="font-size:.88rem" data-i="door4"></span></span><span class="go" data-i="door4go"></span></button>
+  </div>
+  <div class="card"><div class="eyebrow" data-i="fromProphet"></div>
+    <div class="hadith"><p id="h-txt"></p><p class="ref"><b id="h-ref"></b></p></div></div>
+  <div class="card"><div class="eyebrow" data-i="yourPath"></div>
+    <div class="progress"><div class="bar"><i id="prog"></i></div><span class="muted" id="progtxt" style="font-size:.85rem;font-variant-numeric:tabular-nums"></span></div>
+    <p class="muted" style="font-size:.9rem" data-i="pathNote"></p></div>
+</section>
+
+<section class="view" id="v-laer" hidden>
+  <div><div class="eyebrow" data-i="nav_laer"></div><h2 data-i="learnH"></h2><p class="muted" style="margin-top:6px" data-i="learnNote"></p></div>
+  <button class="flowcta" type="button" data-flow="2"><svg viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="28" fill="none" stroke="var(--gold)" stroke-width="1.2"/><circle cx="30" cy="17" r="4.5" fill="none" stroke="var(--gold)" stroke-width="2"/><path d="M30 22v15M30 37l-6 13M30 37l6 13M30 27l-7 5M30 27l7 5" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round"/></svg><span><span class="eyebrow" data-i="flowEy"></span><h3 data-i="flowCta" style="margin-top:4px"></h3><span class="muted" style="font-size:.88rem" data-i="flowCtaSub"></span></span><span class="gold" style="pointer-events:none" data-i="flowGo"></span></button>
+  <button class="basisbtn" type="button" data-go="basis"><span><span class="eyebrow" data-i="basisEy"></span><h3 data-i="basisBtn" style="margin-top:4px"></h3></span><span class="gold" style="pointer-events:none" data-i="open"></span></button>
+  <article class="card" data-k="soejler"><div class="cardhead"><h3 data-i="pillarsH"></h3><button class="check" type="button"></button></div><div data-i="pillars"></div></article>
+  <article class="card" data-k="shahada"><div class="cardhead"><h3>Shahada</h3><button class="check" type="button"></button></div>
+    <p class="ar" lang="ar" style="font-size:1.6rem">أَشْهَدُ أَنْ لَا إِلَٰهَ إِلَّا ٱللَّٰهُ وَأَشْهَدُ أَنَّ مُحَمَّدًا رَسُولُ ٱللَّٰهِ</p>
+    <p class="tr">Ashhadu an lā ilāha illā-llāh, wa ashhadu anna Muḥammadan rasūlu-llāh</p><p data-i="shahada"></p></article>
+  <article class="card" data-k="bøn-forskel"><div class="cardhead"><h3 data-i="diffH"></h3><button class="check" type="button"></button></div><div data-i="diff"></div></article>
+  <article class="card" data-k="boenner"><div class="cardhead"><h3 data-i="prayersH"></h3><button class="check" type="button"></button></div><div class="tblwrap" data-i="prayers"></div><p class="muted" style="font-size:.88rem" data-i="prayersNote"></p></article>
+  <article class="card" data-k="wudu"><div class="cardhead"><h3 data-i="wuduH"></h3><button class="check" type="button"></button></div><div data-i="wudu"></div></article>
+  <article class="card" data-k="fatiha"><div class="cardhead"><h3 data-i="fatihaH"></h3><button class="check" type="button"></button></div><div id="fatiha"></div><p class="muted" style="font-size:.88rem" data-i="fatihaNote"></p></article>
+</section>
+
+<section class="view" id="v-spoerg" hidden>
+  <div><div class="eyebrow" data-i="door2t"></div><h2 data-i="askH"></h2><p class="muted" style="margin-top:6px" data-i="askNote"></p></div>
+  <div class="addr"><span data-i="callMe"></span><div class="chips" id="addr"><button class="chip" type="button" data-a="bror" data-i="aBror"></button><button class="chip" type="button" data-a="soester" data-i="aSoester"></button><button class="chip" type="button" data-a="ingen" data-i="aNone"></button></div></div>
+  <div class="chips" id="forslag"><button class="chip" type="button" data-i="sug1"></button><button class="chip" type="button" data-i="sug2"></button><button class="chip" type="button" data-i="sug3"></button><button class="chip" type="button" data-i="sug4"></button></div>
+  <div class="chat" id="chat" aria-live="polite"></div>
+  <form class="composer" id="cf"><label for="cin" class="sr" data-i="chatPh"></label>
+    <textarea id="cin" rows="2" data-iph="chatPh"></textarea>
+    <button class="gold" id="csend" type="submit" data-i="send"></button><button class="ghost" id="cstop" type="button" hidden data-i="stop"></button></form>
+  <p class="muted" id="cnote" style="font-size:.85rem"></p>
+</section>
+
+<section class="view" id="v-undersoeg" hidden>
+  <div><div class="eyebrow" data-i="nav_undersoeg"></div><h2 data-i="exploreH"></h2><p class="muted" style="margin-top:6px" data-i="exploreNote"></p></div>
+  <div class="scan">
+    <div><div class="eyebrow" data-i="scanEy"></div><h3 style="margin-top:4px" data-i="scanH"></h3></div>
+    <label for="s-txt"><span data-i="scanTxtL"></span><textarea id="s-txt" rows="4" data-iph="scanTxtPh"></textarea></label>
+    <label class="drop" for="s-file"><span class="gold" style="pointer-events:none" data-i="chooseFile"></span><span id="s-fname" data-i="fileHint"></span>
+      <input id="s-file" type="file" accept="image/*,.txt,.md,text/plain" class="sr"></label>
+    <div class="rowbtn"><button class="gold" id="s-go" type="button" data-i="scanBtn"></button></div>
+    <p class="status" id="s-status"></p>
+    <form id="f" hidden style="display:grid;gap:10px">
+      <div class="eyebrow" data-i="checkSave"></div>
+      <label for="f-titel"><span data-i="fTitel"></span><input id="f-titel"></label>
+      <div class="row2"><label for="f-aar"><span data-i="fAar"></span><input id="f-aar" type="number"></label>
+        <label for="f-grad"><span data-i="fGrad"></span><select id="f-grad"><option value="kilde" data-i="g_kilde"></option><option value="tradition" data-i="g_tradition"></option><option value="debat" data-i="g_debat"></option></select></label></div>
+      <label for="f-tekst"><span data-i="fTekst"></span><textarea id="f-tekst" rows="3"></textarea></label>
+      <label for="f-kilde"><span data-i="fKilde"></span><input id="f-kilde"></label>
+      <label for="f-tema"><span data-i="fTema"></span><input id="f-tema"></label>
+      <p class="status err" id="f-err"></p>
+      <div class="rowbtn"><button class="gold" type="submit" data-i="save"></button><button class="ghost" type="button" id="f-cancel" data-i="cancel"></button></div>
+    </form>
+  </div>
+  <label for="sog" class="sr" data-i="searchPh"></label><input id="sog" type="search" data-iph="searchPh">
+  <div class="filters" id="filters"></div>
+  <p class="muted" id="count" style="font-size:.85rem"></p>
+  <div class="tl" id="tl"></div>
+</section>
+
+<section class="view" id="v-basis" hidden>
+  <button class="ghost" type="button" data-go="laer" style="justify-self:start;width:max-content" data-i="back"></button>
+  <div><div class="eyebrow" data-i="basisEy"></div><h2 data-i="basisH"></h2><p class="muted" style="margin-top:6px" data-i="basisNote"></p></div>
+  <h3 data-i="knowH"></h3>
+  <ul class="know" data-i="know"></ul>
+  <h3 data-i="termsH"></h3>
+  <label for="tsog" class="sr" data-i="termsSearch"></label><input id="tsog" type="search" data-iph="termsSearch">
+  <div class="terms" id="terms"></div>
+</section>
+
+<section class="view" id="v-hjaelp" hidden>
+  <div><div class="eyebrow" data-i="helpEy"></div><h2 data-i="helpH"></h2><p class="muted" style="margin-top:6px" data-i="helpNote"></p></div>
+  <div class="helpbody" data-i="helpBody"></div>
+</section>
+
+<div class="helpbar"><p data-i="helpBarTxt"></p><button class="gold" type="button" data-go="hjaelp" data-i="helpBtn"></button></div>
+<p class="foot" data-i="foot"></p>
+</div>
+
+<nav class="bottom" aria-label="Menu"><div>
+  <button data-go="hjem" aria-current="page" type="button"><span class="g">نور</span><span data-i="nav_hjem"></span></button>
+  <button data-go="laer" type="button"><span class="g">تعلّم</span><span data-i="nav_laer"></span></button>
+  <button data-go="spoerg" type="button"><span class="g">اسأل</span><span data-i="nav_spoerg"></span></button>
+  <button data-go="undersoeg" type="button"><span class="g">ابحث</span><span data-i="nav_undersoeg"></span></button>
+  <button data-href="faellesskab/" type="button"><span class="g">معًا</span><span data-i="nav_faelles"></span></button>
+</div></nav>
+
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="set-h"><div>
+  <div class="cardhead"><h2 id="set-h" data-i="settings"></h2><button class="ghost" id="close-set" type="button" data-i="close"></button></div>
+  <div style="display:grid;gap:10px"><div class="eyebrow" data-i="langL"></div><div class="langs" id="langs"></div>
+    <div class="row2" style="align-items:end"><label for="otherlang"><span data-i="otherLang"></span><input id="otherlang" placeholder="Türkçe, Soomaali, العربية, Deutsch …"></label>
+      <button class="gold" id="translate" type="button" data-i="translateBtn"></button></div>
+    <p class="status" id="t-status"></p></div>
+  <div style="display:grid;gap:10px" id="keybox"><div class="eyebrow" data-i="apiL"></div>
+    <p class="muted" style="font-size:.9rem" data-i="apiNote"></p>
+    <label for="apikey" class="sr">API key</label><input id="apikey" type="password" autocomplete="off" placeholder="sk-ant-…">
+    <div class="rowbtn"><button class="gold" id="savekey" type="button" data-i="saveKey"></button><span class="status" id="k-status"></span></div></div>
+  <p class="muted" id="ios-hint" hidden style="font-size:.9rem" data-i="iosHint"></p>
+  <div class="rowbtn"><button class="ghost" id="deldata" type="button" data-i="delData"></button><span class="status" id="d-status"></span></div>
+</div></div>
+
+<div class="loader" id="welcome" hidden role="dialog" aria-modal="true" aria-labelledby="w-h"><div>
+  <div class="star" aria-hidden="true"><i></i><i></i><b></b></div>
+  <h3 id="w-h" data-i="welcomeH"></h3><p class="muted" data-i="welcomeTxt"></p>
+  <button class="gold" id="w-go" type="button" style="padding:14px 22px" data-i="welcomeBtn"></button>
+  <button class="ghost" id="w-skip" type="button" data-i="welcomeSkip"></button>
+</div></div>
+
+<div class="flow" id="flow" hidden role="dialog" aria-modal="true" aria-labelledby="f-title"><div>
+  <div class="ftop"><button class="ghost" id="f-close" type="button" data-i="close"></button><div class="bar"><i id="f-prog"></i></div><span class="muted" id="f-count" style="font-size:.8rem;font-variant-numeric:tabular-nums"></span></div>
+  <div id="f-start" class="fstep" style="text-align:start">
+    <div class="eyebrow" data-i="flowEy"></div><h2 data-i="flowH"></h2><p class="muted" data-i="flowNote"></p>
+    <div class="choose" id="f-choose">
+      <button type="button" data-r="2" aria-pressed="true"><b data-i="p2"></b><span class="muted" data-i="p2s"></span></button>
+      <button type="button" data-r="3" aria-pressed="false"><b data-i="p3"></b><span class="muted" data-i="p3s"></span></button>
+      <button type="button" data-r="4" aria-pressed="false"><b data-i="p4"></b><span class="muted" data-i="p4s"></span></button>
+    </div>
+    <label class="toggle" for="f-wudu"><input type="checkbox" id="f-wudu"><span data-i="withWudu"></span></label>
+    <label class="toggle" for="f-auto"><input type="checkbox" id="f-auto" checked><span data-i="autoRead"></span></label>
+    <p class="muted" style="font-size:.88rem" data-i="learnNoteFlow"></p>
+    <button class="gold" id="f-begin" type="button" style="padding:14px" data-i="startFlow"></button>
+  </div>
+  <div id="f-run" hidden style="display:flex;flex-direction:column;gap:16px;flex:1">
+    <div class="fig" id="f-fig" aria-hidden="true"></div>
+    <div class="fstep"><div class="eyebrow" id="f-rak"></div><h2 id="f-title"></h2><div class="muted" id="f-how"></div></div>
+    <div class="fsay" id="f-say"><p class="ar" lang="ar" id="f-ar"></p><p class="tr" id="f-tr"></p><p class="mean" id="f-mean"></p><span class="times" id="f-times"></span>
+      <div class="rowbtn" style="justify-content:center"><button class="ghost" id="f-listen" type="button" data-i="listen"></button><button class="ghost" id="f-listenM" type="button" data-i="listenMean"></button></div>
+      <p class="muted" id="f-voice" style="font-size:.8rem;text-align:center" hidden></p></div>
+    <div class="fnav"><button class="ghost" id="f-prev" type="button" data-i="prev"></button><button class="gold" id="f-next" type="button" data-i="next"></button></div>
+  </div>
+</div></div>
+
+<div class="loader" id="loader" hidden role="status" aria-live="polite"><div>
+  <div class="star" aria-hidden="true"><i></i><i></i><b></b></div>
+  <h3 id="ld-title"></h3><div class="lbar" id="ld-bar"><i></i></div><p class="muted" id="ld-sub" style="font-size:.88rem"></p>
+</div></div>
+
+<audio id="song" preload="none" src="song.mp3"></audio>
+<script>
+const ls={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+const T={da:{
+ installBtn:"📲 Installér",iosHint:"Gem Nur på din iPhone: tryk på Del-knappen i Safari og vælg \"Føj til hjemmeskærm\".",welcomeH:"Velkommen til Nur",welcomeTxt:"Første gang du åbner appen, følger der en sang med. Den spilles kun denne ene gang.",welcomeBtn:"Bismillah, begynd",welcomeSkip:"Spring sangen over",moreMusic:"Mere musik: musikdk15",counterMe:"Du er nr. <b>{a}</b>",counterAll:"<b>{a}</b> har åbnet Nur",callMe:"Nur kalder dig:",aBror:"Bror",aSoester:"Søster",aNone:"Ingen af dem",deepBtn:"Dyk dybere",deepLoading:"Nur graver dybere …",
+ helloBror:"Salam alaikum, bror. Godt du kigger forbi. Hvad har du på hjerte i dag?",helloSoester:"Salam alaikum, søster. Godt du kigger forbi. Hvad har du på hjerte i dag?",
+ flowEy:"Bed med mig",flowCta:"Lær og bed med mig",flowCtaSub:"Trin for trin, med oplæsning",flowGo:"Start",
+ flowH:"Vi beder sammen, ét trin ad gangen",flowNote:"Vælg bønnen. Appen viser stillingen, hvad du siger, og læser det op for dig.",
+ p2:"2 runder",p2s:"Fajr",p3:"3 runder",p3s:"Maghrib",p4:"4 runder",p4s:"Dhuhr · Asr · Isha",withWudu:"Start med wudu",autoRead:"Læs automatisk op ved hvert trin",
+ learnNoteFlow:"Mens du lærer, er det i orden, at du ikke kan alle ord. Profeten lærte en mand, der endnu ikke kunne Koranen, at sige: Subhanallah, alhamdulillah, la ilaha illallah, Allahu akbar (Abu Dawud 832). Øv gerne flowet her, til du kan det udenad.",
+ startFlow:"Begynd",next:"Næste",prev:"Tilbage",finish:"Færdig",listen:"🔊 Læs arabisk",listenMean:"🔊 Læs betydning",
+ noArVoice:"Din enhed har ingen arabisk stemme. Lyt til recitationen på quran.com.",stepOf:"{a}/{b}",rakOf:"Runde {a} af {b}",times3:"Siges 3 gange",
+ f_wuduT:"Start med wudu",f_niyyaT:"Hensigt (niyya)",f_niyyaH:"Stå vendt mod Mekka. Hav i dit hjerte, hvilken bøn du beder. Det siges ikke højt.",
+ f_takbirT:"Allahu akbar",f_takbirH:"Løft hænderne op til ørerne og sig:",f_takbirM:"Gud er størst.",
+ f_qiyamT:"Stående: al-Fatiha",f_qiyamH:"Læg højre hånd over venstre og recitér al-Fatiha. Sig \"Amin\" til sidst.",
+ f_surahT:"Stående: en kort sura",f_surahH:"I de to første runder læser du en kort sura efter al-Fatiha. Her er al-Ikhlas.",
+ f_ikhlasM:"Sig: Han er Gud, den Ene. Gud, den Evige. Han avler ikke og er ikke avlet. Og ingen er Ham lig.",
+ f_rukuT:"Bøjning (ruku')",f_rukuH:"Sig Allahu akbar og bøj dig frem med hænderne på knæene og ryggen lige.",f_rukuM:"Lovet være min Herre, den Mægtige.",
+ f_itidalT:"Rejs dig op",f_itidalH:"Rejs dig, mens du siger første del. Når du står, siger du anden del.",f_itidalM:"Gud hører den, der lovpriser Ham. Vor Herre, Dig tilhører al lovprisning.",
+ f_sujudT:"Nedkastelse (sujud)",f_sujudH:"Sig Allahu akbar og kast dig ned: pande, næse, hænder, knæ og tæer rører gulvet.",f_sujudM:"Lovet være min Herre, den Højeste.",
+ f_jalsaT:"Kort siddende pause",f_jalsaH:"Sig Allahu akbar og sæt dig op.",f_jalsaM:"Min Herre, tilgiv mig.",
+ f_sujud2T:"Anden nedkastelse",f_sujud2H:"Sig Allahu akbar og kast dig ned igen.",
+ f_standT:"Rejs dig til næste runde",f_standH:"Sig Allahu akbar og rejs dig op.",
+ f_tashT:"Siddende: tashahhud",f_tashH:"Sid roligt og sig:",f_tashFirstH:"Efter anden runde sidder du og siger tashahhud. Bagefter rejser du dig til næste runde.",
+ f_tashM:"Alle hilsener, bønner og gode ting tilhører Gud. Fred være med dig, o Profet, og Guds barmhjertighed og velsignelser. Fred være med os og med Guds retskafne tjenere. Jeg bevidner, at der ingen gud er uden Gud, og at Muhammed er Hans tjener og sendebud.",
+ f_salawatT:"Velsignelsen over profeten",f_salawatH:"I den sidste runde fortsætter du efter tashahhud med:",
+ f_salawatM:"O Gud, send Din nåde over Muhammed og hans familie, som Du sendte den over Abraham og hans familie. Du er den Lovpriste, den Ophøjede. O Gud, velsign Muhammed og hans familie, som Du velsignede Abraham og hans familie. Du er den Lovpriste, den Ophøjede.",
+ f_salamRT:"Afslut: drej hovedet til højre",f_salamLT:"Drej hovedet til venstre",f_salamH:"Sig:",f_salamLH:"Sig det samme igen.",f_salamM:"Fred være med jer og Guds barmhjertighed.",
+ f_doneT:"Din bøn er færdig",f_doneH:"Må Gud tage imod den. Det tager tid at lære, og hver gang bliver det lettere. Gør gerne du'a nu, med dine egne ord.",
+ basisEy:"Basis",basisBtn:"Ord og ting du skal vide",open:"Åbn",back:"← Tilbage",
+ basisH:"Ord og ting du skal vide",basisNote:"De ord du hører i moskeen og blandt muslimer, forklaret enkelt. Og de ting, som nye muslimer ofte ville ønske, nogen havde fortalt dem fra start.",
+ knowH:"Ting du skal vide",termsH:"Ordbog",termsSearch:"Søg efter et ord …",
+ know:"<li><b>Du behøver ikke kunne alt på én gang.</b>Islam lærer man over år. Profeten sagde: gør det let, og gør det ikke svært (Bukhari 69).</li><li><b>Små, faste skridt er bedst.</b>De gerninger, Gud elsker mest, er dem man gør jævnligt, også selvom de er små (Bukhari 6464).</li><li><b>Vær god mod din familie.</b>Koranen siger, at man skal behandle sine forældre godt, også når de ikke deler ens tro (31:14–15).</li><li><b>Du må gerne beholde dit navn.</b>Man skal ikke skifte navn for at blive muslim, medmindre navnet har en dårlig betydning.</li><li><b>Fejl er en del af vejen.</b>Tawbah, at vende om, står altid åbent. Ingen bliver smidt ud af islam for at glemme en bøn eller lave fejl.</li><li><b>Find et fællesskab.</b>En moské, en studiekreds eller andre nye muslimer gør det lettere. Du skal ikke gå vejen alene.</li><li><b>Pas på ekstremer.</b>Den, der lover dig hemmelig viden, særlige tegn eller at du er udvalgt, viser dig ikke islams vej. Islam er åbent, roligt og bygger på kilder, alle kan tjekke.</li><li><b>Spørg altid.</b>Der er ingen dumme spørgsmål. Spørg en imam, en lærer eller brug Spørg Nur.</li>",
+ helpBarTxt:"Bliver det for meget? Hjælp er altid her.",helpBtn:"Hjælp til ro",helpEy:"Hjælp",helpH:"Når det bliver for meget",
+ helpNote:"Det er helt normalt at blive overvældet af ny viden. Islam lærer man over mange år, ikke på én nat. Læg det store fra dig et øjeblik.",
+ helpBody:"<section><h3>Det islam selv siger</h3><ul><li>Profeten sagde: gør det let, og gør det ikke svært (Bukhari 69).</li><li>Søg tilflugt med de korte ord: <i>A'udhu billahi min ash-shaytan ir-rajim</i>, jeg søger tilflugt hos Gud mod den forbandede Satan.</li><li>Læs de to sidste suraer, al-Falaq og an-Nas. An-Nas handler netop om at søge beskyttelse mod hvisken (waswasa).</li><li>Din krop har ret over dig. Sov, spis, gå en tur, og hold en pause fra at læse.</li></ul></section><section><h3>Tal med et menneske</h3><p>En imam, en ven eller en i familien. Du skal ikke bære det hele alene, og en samtale hjælper mere end mere viden.</p></section><section class='care'><h3>Hvis hvisken føles som stemmer</h3><p>Hvis du hører stemmer, som andre ikke hører, ikke sover, eller får en stærk følelse af, at alt handler om dig, eller at du er udvalgt, så tal med en læge. Mange imamer siger det samme: hvisken og sygdom er to forskellige ting, og at søge behandling strider ikke mod troen. Profeten sagde: søg behandling, for Gud har ikke skabt en sygdom uden også at skabe et middel mod den (Abu Dawud 3855).</p><p><b>Livslinien:</b> 70 201 201 · <b>Psykiatrifonden:</b> 39 25 25 25 · <b>Akut fare:</b> 112</p></section>",
+ tagline:"En påmindelse til nye muslimer og en dør for dig, der vil undersøge, spørge og lære.",
+ today:"Dagens påmindelse",quran:"Koranen",nextR:"Næste påmindelse",
+ door1:"Bøn, wudu og al-Fatiha trin for trin",door2t:"Spørg Nur",door2:"Reflektér over det, du står i",door3:"Islams historie med kilder",
+ fromProphet:"Fra profetens ord",yourPath:"Din vej",pathNote:"Markér emnerne under Lær, efterhånden som du får dem på plads. Ét skridt ad gangen.",progOf:"{a} af {b}",
+ nav_hjem:"Hjem",nav_laer:"Lær",nav_spoerg:"Spørg",nav_undersoeg:"Undersøg",
+ learnH:"Grundlaget, roligt og enkelt",learnNote:"Hovedstrømmen af sunni-islam. Detaljer varierer mellem lovskolerne, så spørg en imam i din lokale moské om det personlige.",
+ mark:"Markér som lært",marked:"Lært ✓",
+ pillarsH:"De fem søjler",
+ pillars:"<ol><li><b>Shahada</b>, trosbekendelsen.</li><li><b>Salah</b>, de fem daglige bønner.</li><li><b>Zakat</b>, en årlig almisse til fattige.</li><li><b>Sawm</b>, faste i måneden ramadan.</li><li><b>Hajj</b>, pilgrimsrejsen til Mekka én gang i livet for den, der har helbred og råd.</li></ol>",
+ shahada:"Jeg bevidner, at der ingen gud er uden Gud, og jeg bevidner, at Muhammed er Guds sendebud.",
+ diffH:"Fast bøn og personlig bøn",
+ diff:"<div class=\"cmp\"><div><h4>Salah · fast bøn</h4><ul><li>En pligt, fem gange om dagen</li><li>Faste tidspunkter</li><li>Kræver rituel vask (wudu)</li><li>Vendt mod Mekka (qibla)</li><li>Faste bevægelser</li><li>På arabisk, med al-Fatiha i hver runde</li></ul></div><div><h4>Du'a · personlig bøn</h4><ul><li>Frivillig, når som helst</li><li>Intet fast tidspunkt</li><li>Vask anbefales, men kræves ikke</li><li>Ingen faste bevægelser</li><li>Med dine egne ord</li><li>På et hvilket som helst sprog</li></ul></div></div>",
+ prayersH:"De fem daglige bønner",
+ prayers:"<table><thead><tr><th>Bøn</th><th>Tidspunkt</th><th>Runder</th></tr></thead><tbody><tr><td>Fajr</td><td>Daggry, før solopgang</td><td>2</td></tr><tr><td>Dhuhr</td><td>Lige efter middag</td><td>4</td></tr><tr><td>Asr</td><td>Eftermiddag</td><td>4</td></tr><tr><td>Maghrib</td><td>Lige efter solnedgang</td><td>3</td></tr><tr><td>Isha</td><td>Aften, når det er mørkt</td><td>4</td></tr></tbody></table>",
+ prayersNote:"Tiderne skifter med årstiden. Din lokale moské eller en bønne-app viser dem for din by.",
+ wuduH:"Wudu, den rituelle vask",
+ wudu:"<ol><li>Hav i tankerne, at du vasker dig for at bede (niyya).</li><li>Sig \"Bismillah\" og vask hænderne.</li><li>Skyl munden.</li><li>Skyl næsen.</li><li>Vask ansigtet.</li><li>Vask armene op til albuerne, højre først.</li><li>Stryg våde hænder over hovedet og ørerne.</li><li>Vask fødderne op til anklerne, højre først.</li></ol>",
+ fatihaH:"Al-Fatiha, \"Åbningen\"",fatihaNote:"Oversættelsen gengiver betydningen. Lyt til recitationen på quran.com, sura 1.",
+ askH:"Hvad står du i?",askNote:"Nur hjælper dig med at se på dit liv med islams egne redskaber: istikhara, tålmodighed, taknemmelighed og forståelsen af qadar. Nur tolker ikke tegn i dit liv og afgør ikke personlige spørgsmål. Dem tager du med til en imam.",
+ sug1:"Hvordan beder man istikhara?",sug2:"Jeg står over for et stort valg",sug3:"Hvordan finder jeg ro i en svær tid?",sug4:"Hvad betyder qadar?",
+ chatPh:"Skriv til Nur …",send:"Send",stop:"Stop",hello:"Assalamu alaikum. Jeg er Nur. Hvad står du i, eller hvad vil du gerne forstå?",
+ thinking:"Nur tænker …",aiNote:"Svarene kommer fra en AI og kan indeholde fejl. Tjek henvisningerne på quran.com og sunnah.com.",
+ needAI:"Chatten, scanneren og oversættelsen kræver Claude-appen eller din egen API-nøgle under 🌐.",
+ exploreH:"Islams historie, med kilder",
+ exploreNote:"Hver post har en kilde og et mærke: <span class=\"pill p-kilde\">Kilde</span> dokumenteret, <span class=\"pill p-tradition\">Tradition</span> traditionens beretning, <span class=\"pill p-debat\">Debat</span> omdiskuteret blandt forskere.",
+ scanEy:"Scan en kilde",scanH:"Indsæt tekst eller tag et foto af en side",scanTxtL:"Tekst fra en bog, artikel eller hjemmeside",scanTxtPh:"Indsæt teksten her …",
+ chooseFile:"Vælg fil",fileHint:"Foto af en bogside, eller en .txt-fil",scanBtn:"Scan kilden",checkSave:"Tjek og gem",
+ fTitel:"Titel",fAar:"År (negativt = f.Kr.)",fGrad:"Mærke",fTekst:"Hvad siger kilden?",fKilde:"Kilde (påkrævet)",fTema:"Temaer, kommasepareret",
+ g_kilde:"Kilde",g_tradition:"Tradition",g_debat:"Debat",save:"Gem i biblioteket",cancel:"Annullér",
+ searchPh:"Søg i titel, tekst og kilde …",all:"Alle",posts:"{a} af {b} poster",noMatch:"Ingen poster matcher.",del:"Slet",yearBC:"f.Kr.",yearAD:"År",srcL:"Kilde",
+ scanEmpty:"Indsæt noget tekst eller vælg et foto først.",scanPhotoNo:"Fotos kan ikke scannes her. Indsæt teksten i stedet.",scanning:"Scanner kilden …",scanDone:"Færdig. Tjek felterne og gem.",
+ scanFail:"Scanningen mislykkedes. Prøv med en kortere tekst eller et skarpere foto.",saved:"Gemt i biblioteket.",needFields:"Titel, år og kilde skal udfyldes. En post uden kilde kan ikke bruges.",
+ photoChosen:"Foto valgt: ",textLoaded:"Tekst indlæst: ",
+ notGranted:"Appen har ikke fået lov til at bruge Claude i denne visning.",rateLimited:"Der er mange forespørgsler lige nu. Vent et minut og prøv igen.",stopped:"Stoppet.",genericErr:"Noget gik galt. Prøv igen om lidt.",badKey:"API-nøglen blev afvist. Tjek den under 🌐.",
+ foot:"Nur er lavet af Malik, en dansk muslim. Har du brug for at tale med nogen, kan du ringe til Livslinien på 70 201 201. Ved fare: 112.",
+ settings:"Sprog og indstillinger",close:"Luk",langL:"Sprog",otherLang:"Andet sprog",translateBtn:"Oversæt appen",
+ translating:"Oversætter … del {a} af {b}",translated:"Færdig. Oversættelsen er gemt på denne enhed.",transFail:"Oversættelsen mislykkedes. Prøv igen.",
+ apiL:"Din egen AI-nøgle",apiNote:"Kun nødvendig, når appen bruges uden for Claude. Nøglen gemmes kun i din browser og sendes kun til Anthropic.",
+ saveKey:"Gem nøgle",keySaved:"Gemt.",keyRemoved:"Fjernet.",delData:"Slet alle mine data på denne enhed",dataDeleted:"Alt er slettet."
+},
+en:{
+ installBtn:"📲 Install",iosHint:"Save Nur on your iPhone: tap the Share button in Safari and choose \"Add to Home Screen\".",welcomeH:"Welcome to Nur",welcomeTxt:"The first time you open the app, a song comes with it. It only plays this one time.",welcomeBtn:"Bismillah, begin",welcomeSkip:"Skip the song",moreMusic:"More music: musikdk15",counterMe:"You are no. <b>{a}</b>",counterAll:"<b>{a}</b> have opened Nur",callMe:"Nur calls you:",aBror:"Brother",aSoester:"Sister",aNone:"Neither",deepBtn:"Go deeper",deepLoading:"Nur is digging deeper …",
+ helloBror:"Salam alaikum, brother. Good to see you. What's on your heart today?",helloSoester:"Salam alaikum, sister. Good to see you. What's on your heart today?",
+ flowEy:"Pray with me",flowCta:"Learn and pray with me",flowCtaSub:"Step by step, read aloud",flowGo:"Start",
+ flowH:"We pray together, one step at a time",flowNote:"Choose the prayer. The app shows the position, what you say, and reads it aloud for you.",
+ p2:"2 units",p2s:"Fajr",p3:"3 units",p3s:"Maghrib",p4:"4 units",p4s:"Dhuhr · Asr · Isha",withWudu:"Start with wudu",autoRead:"Read aloud automatically at each step",
+ learnNoteFlow:"While you learn, it's fine not to know every word. The Prophet taught a man who could not yet recite the Quran to say: Subhanallah, alhamdulillah, la ilaha illallah, Allahu akbar (Abu Dawud 832). Practise the flow here until you know it by heart.",
+ startFlow:"Begin",next:"Next",prev:"Back",finish:"Done",listen:"🔊 Read Arabic",listenMean:"🔊 Read meaning",
+ noArVoice:"Your device has no Arabic voice. Listen to the recitation at quran.com.",stepOf:"{a}/{b}",rakOf:"Unit {a} of {b}",times3:"Said 3 times",
+ f_wuduT:"Start with wudu",f_niyyaT:"Intention (niyya)",f_niyyaH:"Stand facing Mecca. Hold in your heart which prayer you are praying. It is not said aloud.",
+ f_takbirT:"Allahu akbar",f_takbirH:"Raise your hands to your ears and say:",f_takbirM:"God is the greatest.",
+ f_qiyamT:"Standing: al-Fatiha",f_qiyamH:"Place your right hand over your left and recite al-Fatiha. Say \"Amin\" at the end.",
+ f_surahT:"Standing: a short surah",f_surahH:"In the first two units you recite a short surah after al-Fatiha. Here is al-Ikhlas.",
+ f_ikhlasM:"Say: He is God, the One. God, the Eternal. He neither begets nor is born. And there is none like Him.",
+ f_rukuT:"Bowing (ruku')",f_rukuH:"Say Allahu akbar and bow with your hands on your knees and your back straight.",f_rukuM:"Glory be to my Lord, the Magnificent.",
+ f_itidalT:"Stand up",f_itidalH:"Rise while saying the first part. When standing, say the second part.",f_itidalM:"God hears the one who praises Him. Our Lord, to You belongs all praise.",
+ f_sujudT:"Prostration (sujud)",f_sujudH:"Say Allahu akbar and prostrate: forehead, nose, hands, knees and toes touch the floor.",f_sujudM:"Glory be to my Lord, the Most High.",
+ f_jalsaT:"Short sitting pause",f_jalsaH:"Say Allahu akbar and sit up.",f_jalsaM:"My Lord, forgive me.",
+ f_sujud2T:"Second prostration",f_sujud2H:"Say Allahu akbar and prostrate again.",
+ f_standT:"Rise for the next unit",f_standH:"Say Allahu akbar and stand up.",
+ f_tashT:"Sitting: tashahhud",f_tashH:"Sit calmly and say:",f_tashFirstH:"After the second unit you sit and say the tashahhud. Then you rise for the next unit.",
+ f_tashM:"All greetings, prayers and good things belong to God. Peace be upon you, O Prophet, and God's mercy and blessings. Peace be upon us and upon God's righteous servants. I bear witness that there is no god but God, and that Muhammad is His servant and messenger.",
+ f_salawatT:"Blessings upon the Prophet",f_salawatH:"In the last unit, continue after the tashahhud with:",
+ f_salawatM:"O God, send Your grace upon Muhammad and his family, as You sent it upon Abraham and his family. You are Praiseworthy, Glorious. O God, bless Muhammad and his family, as You blessed Abraham and his family. You are Praiseworthy, Glorious.",
+ f_salamRT:"Finish: turn your head right",f_salamLT:"Turn your head left",f_salamH:"Say:",f_salamLH:"Say the same again.",f_salamM:"Peace be upon you and God's mercy.",
+ f_doneT:"Your prayer is complete",f_doneH:"May God accept it. It takes time to learn, and it gets easier every time. Make du'a now if you like, in your own words.",
+ basisEy:"Basics",basisBtn:"Words and things you should know",open:"Open",back:"← Back",
+ basisH:"Words and things you should know",basisNote:"The words you hear at the mosque and among Muslims, explained simply. And the things new Muslims often wish someone had told them from the start.",
+ knowH:"Things you should know",termsH:"Glossary",termsSearch:"Search for a word …",
+ know:"<li><b>You don't have to know everything at once.</b>Islam is learned over years. The Prophet said: make things easy, and do not make them difficult (Bukhari 69).</li><li><b>Small, steady steps are best.</b>The deeds God loves most are those done regularly, even if they are small (Bukhari 6464).</li><li><b>Be good to your family.</b>The Quran says to treat your parents well, even when they don't share your faith (31:14–15).</li><li><b>You may keep your name.</b>You don't need to change your name to become Muslim, unless it has a bad meaning.</li><li><b>Mistakes are part of the path.</b>Tawbah, turning back, is always open. No one is thrown out of Islam for forgetting a prayer or making mistakes.</li><li><b>Find a community.</b>A mosque, a study circle or other new Muslims make it easier. You don't have to walk the path alone.</li><li><b>Beware of extremes.</b>Anyone who promises you secret knowledge, special signs or that you are chosen is not showing you Islam's way. Islam is open, calm and built on sources anyone can check.</li><li><b>Always ask.</b>There are no stupid questions. Ask an imam, a teacher, or use Ask Nur.</li>",
+ helpBarTxt:"Is it getting too much? Help is always here.",helpBtn:"Help to find calm",helpEy:"Help",helpH:"When it gets too much",
+ helpNote:"It is completely normal to feel overwhelmed by new knowledge. Islam is learned over many years, not in one night. Put the big things down for a moment.",
+ helpBody:"<section><h3>What Islam itself says</h3><ul><li>The Prophet said: make things easy, and do not make them difficult (Bukhari 69).</li><li>Seek refuge with the short words: <i>A'udhu billahi min ash-shaytan ir-rajim</i>, I seek refuge with God from the accursed Satan.</li><li>Read the last two surahs, al-Falaq and an-Nas. An-Nas is about seeking protection from whispering (waswasa).</li><li>Your body has a right over you. Sleep, eat, take a walk, and take a break from reading.</li></ul></section><section><h3>Talk to a person</h3><p>An imam, a friend or someone in your family. You don't have to carry it all alone, and a conversation helps more than more knowledge.</p></section><section class='care'><h3>If whispers feel like voices</h3><p>If you hear voices others don't hear, aren't sleeping, or get a strong feeling that everything is about you or that you are chosen, talk to a doctor. Many imams say the same: whispering and illness are two different things, and seeking treatment does not go against faith. The Prophet said: seek treatment, for God has not created a disease without also creating a remedy for it (Abu Dawud 3855).</p><p><b>Help:</b> contact a crisis line in your country · <b>Emergency in Europe:</b> 112</p></section>",
+ tagline:"A reminder for new Muslims, and a door for anyone who wants to explore, ask and learn.",
+ today:"Today's reminder",quran:"Quran",nextR:"Next reminder",
+ door1:"Prayer, wudu and al-Fatiha step by step",door2t:"Ask Nur",door2:"Reflect on what you're going through",door3:"The history of Islam, with sources",
+ fromProphet:"From the Prophet's words",yourPath:"Your path",pathNote:"Mark the topics under Learn as you get them in place. One step at a time.",progOf:"{a} of {b}",
+ nav_hjem:"Home",nav_laer:"Learn",nav_spoerg:"Ask",nav_undersoeg:"Explore",
+ learnH:"The foundations, calm and simple",learnNote:"Mainstream Sunni practice. Details differ between the schools of law, so ask an imam at your local mosque about personal matters.",
+ mark:"Mark as learned",marked:"Learned ✓",
+ pillarsH:"The five pillars",
+ pillars:"<ol><li><b>Shahada</b>, the declaration of faith.</li><li><b>Salah</b>, the five daily prayers.</li><li><b>Zakat</b>, a yearly charity to the poor.</li><li><b>Sawm</b>, fasting in the month of Ramadan.</li><li><b>Hajj</b>, the pilgrimage to Mecca once in a lifetime for those who are able.</li></ol>",
+ shahada:"I bear witness that there is no god but God, and I bear witness that Muhammad is the Messenger of God.",
+ diffH:"Obligatory prayer and personal prayer",
+ diff:"<div class=\"cmp\"><div><h4>Salah · obligatory prayer</h4><ul><li>A duty, five times a day</li><li>Fixed times</li><li>Requires ritual washing (wudu)</li><li>Facing Mecca (qibla)</li><li>Fixed movements</li><li>In Arabic, with al-Fatiha in every unit</li></ul></div><div><h4>Du'a · personal prayer</h4><ul><li>Voluntary, any time</li><li>No fixed time</li><li>Washing recommended, not required</li><li>No fixed movements</li><li>In your own words</li><li>In any language</li></ul></div></div>",
+ prayersH:"The five daily prayers",
+ prayers:"<table><thead><tr><th>Prayer</th><th>Time</th><th>Units</th></tr></thead><tbody><tr><td>Fajr</td><td>Dawn, before sunrise</td><td>2</td></tr><tr><td>Dhuhr</td><td>Just after midday</td><td>4</td></tr><tr><td>Asr</td><td>Afternoon</td><td>4</td></tr><tr><td>Maghrib</td><td>Just after sunset</td><td>3</td></tr><tr><td>Isha</td><td>Evening, when it is dark</td><td>4</td></tr></tbody></table>",
+ prayersNote:"The times change with the seasons. Your local mosque or a prayer app shows them for your city.",
+ wuduH:"Wudu, the ritual washing",
+ wudu:"<ol><li>Hold the intention to wash for prayer (niyya).</li><li>Say \"Bismillah\" and wash your hands.</li><li>Rinse your mouth.</li><li>Rinse your nose.</li><li>Wash your face.</li><li>Wash your arms up to the elbows, right first.</li><li>Wipe wet hands over your head and ears.</li><li>Wash your feet up to the ankles, right first.</li></ol>",
+ fatihaH:"Al-Fatiha, \"The Opening\"",fatihaNote:"The translation renders the meaning. Listen to the recitation at quran.com, surah 1.",
+ askH:"What are you going through?",askNote:"Nur helps you look at your life with Islam's own tools: istikhara, patience, gratitude and the understanding of qadar. Nur does not interpret signs in your life and does not decide personal questions. Take those to an imam.",
+ sug1:"How do I pray istikhara?",sug2:"I'm facing a big decision",sug3:"How do I find peace in a hard time?",sug4:"What does qadar mean?",
+ chatPh:"Write to Nur …",send:"Send",stop:"Stop",hello:"Assalamu alaikum. I'm Nur. What are you going through, or what would you like to understand?",
+ thinking:"Nur is thinking …",aiNote:"Answers come from an AI and may contain mistakes. Check references on quran.com and sunnah.com.",
+ needAI:"The chat, scanner and translation need the Claude app or your own API key under 🌐.",
+ exploreH:"The history of Islam, with sources",
+ exploreNote:"Every entry has a source and a label: <span class=\"pill p-kilde\">Source</span> documented, <span class=\"pill p-tradition\">Tradition</span> the traditional account, <span class=\"pill p-debat\">Debate</span> discussed among scholars.",
+ scanEy:"Scan a source",scanH:"Paste text or take a photo of a page",scanTxtL:"Text from a book, article or website",scanTxtPh:"Paste the text here …",
+ chooseFile:"Choose file",fileHint:"A photo of a book page, or a .txt file",scanBtn:"Scan the source",checkSave:"Check and save",
+ fTitel:"Title",fAar:"Year (negative = BC)",fGrad:"Label",fTekst:"What does the source say?",fKilde:"Source (required)",fTema:"Themes, comma-separated",
+ g_kilde:"Source",g_tradition:"Tradition",g_debat:"Debate",save:"Save to library",cancel:"Cancel",
+ searchPh:"Search title, text and source …",all:"All",posts:"{a} of {b} entries",noMatch:"No entries match.",del:"Delete",yearBC:"BC",yearAD:"Year",srcL:"Source",
+ scanEmpty:"Paste some text or choose a photo first.",scanPhotoNo:"Photos can't be scanned here. Paste the text instead.",scanning:"Scanning the source …",scanDone:"Done. Check the fields and save.",
+ scanFail:"The scan failed. Try a shorter text or a sharper photo.",saved:"Saved to the library.",needFields:"Title, year and source are required. An entry without a source can't be used.",
+ photoChosen:"Photo chosen: ",textLoaded:"Text loaded: ",
+ notGranted:"The app hasn't been allowed to use Claude in this view.",rateLimited:"Too many requests right now. Wait a minute and try again.",stopped:"Stopped.",genericErr:"Something went wrong. Try again shortly.",badKey:"The API key was rejected. Check it under 🌐.",
+ foot:"Nur was made by Malik, a Danish Muslim. If you need someone to talk to, contact a local helpline. In danger, call your emergency number.",
+ settings:"Language and settings",close:"Close",langL:"Language",otherLang:"Another language",translateBtn:"Translate the app",
+ translating:"Translating … part {a} of {b}",translated:"Done. The translation is saved on this device.",transFail:"The translation failed. Try again.",
+ apiL:"Your own AI key",apiNote:"Only needed when the app is used outside Claude. The key is stored only in your browser and sent only to Anthropic.",
+ saveKey:"Save key",keySaved:"Saved.",keyRemoved:"Removed.",delData:"Delete all my data on this device",dataDeleted:"Everything is deleted."
+}};
+
+const AYAT=[
+ ["لَا يُكَلِّفُ ٱللَّهُ نَفْسًا إِلَّا وُسْعَهَا",{da:"Gud lægger ikke mere på et menneske, end det kan bære.",en:"God does not burden a soul beyond what it can bear."},"2:286"],
+ ["فَإِنَّ مَعَ ٱلْعُسْرِ يُسْرًا",{da:"Sandelig, med det svære følger lettelse.",en:"Truly, with hardship comes ease."},"94:5"],
+ ["أَلَا بِذِكْرِ ٱللَّهِ تَطْمَئِنُّ ٱلْقُلُوبُ",{da:"I ihukommelsen af Gud finder hjerterne ro.",en:"In the remembrance of God, hearts find rest."},"13:28"],
+ ["فَٱذْكُرُونِىٓ أَذْكُرْكُمْ",{da:"Husk på Mig, så husker Jeg på jer.",en:"Remember Me, and I will remember you."},"2:152"],
+ ["وَإِذَا سَأَلَكَ عِبَادِى عَنِّى فَإِنِّى قَرِيبٌ",{da:"Når Mine tjenere spørger om Mig, så er Jeg nær.",en:"When My servants ask about Me, I am near."},"2:186"],
+ ["لَا تَقْنَطُوا۟ مِن رَّحْمَةِ ٱللَّهِ",{da:"Mist ikke håbet om Guds barmhjertighed.",en:"Do not despair of God's mercy."},"39:53"],
+ ["وَمَن يَتَوَكَّلْ عَلَى ٱللَّهِ فَهُوَ حَسْبُهُۥٓ",{da:"Den, der stoler på Gud, er Han tilstrækkelig for.",en:"Whoever puts their trust in God, He is enough for them."},"65:3"],
+ ["لَآ إِكْرَاهَ فِى ٱلدِّينِ",{da:"Der er ingen tvang i religion.",en:"There is no compulsion in religion."},"2:256"],
+ ["رَّبِّ زِدْنِى عِلْمًا",{da:"Min Herre, giv mig mere viden.",en:"My Lord, increase me in knowledge."},"20:114"],
+ ["ٱقْرَأْ بِٱسْمِ رَبِّكَ ٱلَّذِى خَلَقَ",{da:"Læs, i din Herres navn, Han som skabte.",en:"Read, in the name of your Lord who created."},"96:1"]];
+const HADITH=[
+ [{da:"Handlinger bedømmes efter hensigten bag dem.",en:"Actions are judged by the intentions behind them."},"Bukhari 1"],
+ [{da:"Gør tingene lette, og gør dem ikke svære.",en:"Make things easy, and do not make them difficult."},"Bukhari 69"],
+ [{da:"Ingen af jer tror for alvor, før han ønsker for sin bror det, han ønsker for sig selv.",en:"None of you truly believes until he wants for his brother what he wants for himself."},"Bukhari 13"],
+ [{da:"De gerninger, Gud elsker mest, er dem man gør jævnligt, også selvom de er små.",en:"The deeds most loved by God are those done regularly, even if they are small."},"Bukhari 6464"],
+ [{da:"Den stærke er ikke den, der vinder i brydning, men den, der styrer sig selv, når han bliver vred.",en:"The strong one is not the one who wins at wrestling, but the one who controls himself when angry."},"Bukhari 6114"],
+ [{da:"At søge viden er en pligt for enhver muslim.",en:"Seeking knowledge is a duty on every Muslim."},"Ibn Majah 224"]];
+const FAT=[["بِسْمِ ٱللَّٰهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ","Bismi-llāhi r-raḥmāni r-raḥīm",{da:"I Guds navn, den Nåderige, den Barmhjertige.",en:"In the name of God, the Most Gracious, the Most Merciful."}],
+["ٱلْحَمْدُ لِلَّٰهِ رَبِّ ٱلْعَٰلَمِينَ","Al-ḥamdu li-llāhi rabbi l-ʿālamīn",{da:"Al lovprisning tilhører Gud, Herren over alle verdener,",en:"All praise belongs to God, Lord of all the worlds,"}],
+["ٱلرَّحْمَٰنِ ٱلرَّحِيمِ","Ar-raḥmāni r-raḥīm",{da:"den Nåderige, den Barmhjertige,",en:"the Most Gracious, the Most Merciful,"}],
+["مَٰلِكِ يَوْمِ ٱلدِّينِ","Māliki yawmi d-dīn",{da:"Herren over Dommens Dag.",en:"Master of the Day of Judgement."}],
+["إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ","Iyyāka naʿbudu wa iyyāka nastaʿīn",{da:"Dig alene tilbeder vi, og Dig alene beder vi om hjælp.",en:"You alone we worship, and You alone we ask for help."}],
+["ٱهْدِنَا ٱلصِّرَٰطَ ٱلْمُسْتَقِيمَ","Ihdinā ṣ-ṣirāṭa l-mustaqīm",{da:"Led os ad den lige vej,",en:"Guide us along the straight path,"}],
+["صِرَٰطَ ٱلَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ ٱلْمَغْضُوبِ عَلَيْهِمْ وَلَا ٱلضَّآلِّينَ","Ṣirāṭa lladhīna anʿamta ʿalayhim, ghayri l-maghḍūbi ʿalayhim wa lā ḍ-ḍāllīn",{da:"vejen for dem, Du har vist nåde, ikke dem, der har vakt vrede, eller dem, der er faret vild.",en:"the path of those You have blessed, not of those who earned anger, nor of those who went astray."}]];
+const E=(aar,grad,da,en,kilde)=>({aar,grad,titel:{da:da[0],en:en[0]},tekst:{da:da[1],en:en[1]},tema:{da:da[2],en:en[2]},kilde});
+const BASE=[
+ E(570,"tradition",["Muhammed fødes i Mekka","Traditionen sætter fødslen til omkring år 570, ofte kaldt Elefantens år. Det præcise år kendes ikke.",["profeten"]],["Muhammad is born in Mecca","Tradition places his birth around 570, often called the Year of the Elephant. The exact year is not known.",["the prophet"]],"Ibn Ishaq, Sirat Rasul Allah, ed. Ibn Hisham (9th c.)"),
+ E(610,"tradition",["Den første åbenbaring i hulen Hira","Ifølge Aishas beretning møder Muhammed englen Jibril og modtager de første vers, sura 96.",["profeten","koranen"]],["The first revelation in the cave of Hira","According to Aisha's account, Muhammad meets the angel Jibril and receives the first verses, surah 96.",["the prophet","quran"]],"Sahih al-Bukhari 3"),
+ E(622,"kilde",["Hijra: udvandringen til Medina","Muhammed og de første muslimer flytter fra Mekka til Medina. Året bliver begyndelsen på den islamiske kalender.",["profeten","historie"]],["Hijra: the migration to Medina","Muhammad and the first Muslims move from Mecca to Medina. The year becomes the start of the Islamic calendar.",["the prophet","history"]],"Ibn Ishaq/Ibn Hisham; the hijri calendar"),
+ E(624,"kilde",["Slaget ved Badr","Muslimerne fra Medina besejrer en større styrke fra Mekka. Koranen omtaler sejren.",["historie"]],["The Battle of Badr","The Muslims of Medina defeat a larger force from Mecca. The Quran mentions the victory.",["history"]],"Quran 3:123"),
+ E(630,"kilde",["Tilbagevenden til Mekka","Muhammed vender tilbage til Mekka, og afgudsbillederne ved Kaaba fjernes.",["profeten","historie"]],["The return to Mecca","Muhammad returns to Mecca, and the idols at the Kaaba are removed.",["the prophet","history"]],"Ibn Ishaq/Ibn Hisham"),
+ E(632,"kilde",["Afskedspilgrimsrejsen og profetens død","Muhammed holder sin afskedsprædiken under hajj og dør senere samme år i Medina.",["profeten"]],["The Farewell Pilgrimage and the Prophet's death","Muhammad gives his farewell sermon during hajj and dies later that year in Medina.",["the prophet"]],"Sahih al-Bukhari, book of the Farewell Pilgrimage"),
+ E(632.5,"kilde",["Koranen samles under Abu Bakr","Efter mange Koran-reciteres død beder kaliffen Abu Bakr Zayd ibn Thabit om at samle Koranen på skrift.",["koranen"]],["The Quran is gathered under Abu Bakr","After many Quran reciters die, Caliph Abu Bakr asks Zayd ibn Thabit to gather the Quran in writing.",["quran"]],"Sahih al-Bukhari 4986"),
+ E(650,"kilde",["Uthman fastlægger én udgave","Kalif Uthman lader en standardudgave af Koranen afskrive og sende til provinserne.",["koranen"]],["Uthman sets one standard copy","Caliph Uthman has a standard copy of the Quran written out and sent to the provinces.",["quran"]],"Sahih al-Bukhari 4987"),
+ E(680,"kilde",["Karbala","Profetens barnebarn Husayn dræbes ved Karbala. Begivenheden bliver central for shia-islam.",["historie","sunni og shia"]],["Karbala","The Prophet's grandson Husayn is killed at Karbala. The event becomes central to Shia Islam.",["history","sunni and shia"]],"Al-Tabari, Tarikh al-rusul wa'l-muluk (10th c.)"),
+ E(767,"kilde",["Abu Hanifa dør","Grundlæggeren af den hanafiske lovskole, den mest udbredte af de fire sunnimuslimske skoler.",["lovskoler"]],["Abu Hanifa dies","Founder of the Hanafi school, the most widespread of the four Sunni schools of law.",["schools of law"]],"Classical Islamic biographical literature"),
+ E(795,"kilde",["Malik ibn Anas dør","Grundlæggeren af den malikitiske lovskole og forfatter til al-Muwatta, en af de ældste hadith-samlinger.",["lovskoler","hadith"]],["Malik ibn Anas dies","Founder of the Maliki school and author of al-Muwatta, one of the oldest hadith collections.",["schools of law","hadith"]],"Malik ibn Anas, al-Muwatta"),
+ E(820,"kilde",["Al-Shafi'i dør","Grundlæggeren af den shafiitiske lovskole og af læren om, hvordan man udleder regler fra kilderne.",["lovskoler"]],["Al-Shafi'i dies","Founder of the Shafi'i school and of the method for deriving rulings from the sources.",["schools of law"]],"Al-Shafi'i, al-Risala"),
+ E(855,"kilde",["Ahmad ibn Hanbal dør","Grundlæggeren af den hanbalitiske lovskole og samler af hadith-værket Musnad.",["lovskoler","hadith"]],["Ahmad ibn Hanbal dies","Founder of the Hanbali school and compiler of the hadith work Musnad.",["schools of law","hadith"]],"Ahmad ibn Hanbal, al-Musnad"),
+ E(870,"kilde",["Al-Bukhari dør","Hans Sahih regnes af sunnimuslimer som den mest pålidelige hadith-samling.",["hadith"]],["Al-Bukhari dies","Sunni Muslims regard his Sahih as the most reliable hadith collection.",["hadith"]],"Sahih al-Bukhari"),
+ E(875,"kilde",["Muslim ibn al-Hajjaj dør","Hans Sahih Muslim regnes som den næstmest pålidelige sunnimuslimske samling.",["hadith"]],["Muslim ibn al-Hajjaj dies","His Sahih Muslim is regarded as the second most reliable Sunni collection.",["hadith"]],"Sahih Muslim"),
+ E(1111,"kilde",["Al-Ghazali dør","Teologen bag Ihya' ulum al-din, et hovedværk om at forene lov, tro og det indre liv.",["tænkere"]],["Al-Ghazali dies","The theologian behind Ihya' ulum al-din, a major work uniting law, faith and the inner life.",["thinkers"]],"Al-Ghazali, Ihya' ulum al-din"),
+ E(1924,"kilde",["Kairo-udgaven af Koranen","En trykt standardudgave efter Hafs' recitation. Den bliver grundlag for de fleste trykte Koraner i dag.",["koranen"]],["The Cairo edition of the Quran","A printed standard edition following the Hafs recitation. It becomes the basis of most printed Qurans today.",["quran"]],"Al-Azhar, Cairo 1924"),
+ E(1967,"kilde",["Danmarks første moské","Nusrat Djahan-moskéen i Hvidovre åbner. Den er bygget af Ahmadiyya-bevægelsen.",["islam i Danmark"]],["Denmark's first mosque","The Nusrat Djahan Mosque in Hvidovre opens. It was built by the Ahmadiyya movement.",["islam in Denmark"]],"Nusrat Djahan Mosque, Hvidovre"),
+ E(2014,"kilde",["Hamad bin Khalifa Civilisationscenter","En stor moské med minaret åbner på Nørrebro i København.",["islam i Danmark"]],["Hamad bin Khalifa Civilisation Center","A large mosque with a minaret opens in Nørrebro, Copenhagen.",["islam in Denmark"]],"Hamad bin Khalifa Civilisation Center, Copenhagen 2014"),
+ E(2015,"debat",["Birmingham-manuskriptet","Kulstof-14 daterer pergamentet i et Koran-fragment til mellem 568 og 645. Forskere diskuterer, hvad det betyder for, hvornår teksten blev skrevet.",["koranen","forskning"]],["The Birmingham manuscript","Radiocarbon dating places the parchment of a Quran fragment between 568 and 645. Scholars debate what this means for when the text was written.",["quran","research"]],"University of Birmingham, July 2015"),
+ E(661,"kilde",["Umayyade-dynastiet begynder","Efter kalif Alis død bliver Mu'awiya hersker, og kalifatet flytter til Damaskus. Uenigheden om lederskab former skellet mellem sunni og shia.",["historie","sunni og shia"]],["The Umayyad dynasty begins","After Caliph Ali's death, Mu'awiya becomes ruler and the caliphate moves to Damascus. The dispute over leadership shapes the Sunni–Shia divide.",["history","sunni and shia"]],"Al-Tabari, Tarikh al-rusul wa'l-muluk"),
+ E(711,"kilde",["Muslimer kommer til Den Iberiske Halvø","Tariq ibn Ziyad krydser strædet ved Gibraltar. Al-Andalus bliver et center for videnskab, kunst og sameksistens i flere hundrede år.",["historie","europa"]],["Muslims arrive in the Iberian Peninsula","Tariq ibn Ziyad crosses the strait at Gibraltar. Al-Andalus becomes a centre of science, art and coexistence for centuries.",["history","europe"]],"Gibraltar bærer hans navn: Jabal Tariq"),
+ E(762,"kilde",["Bagdad grundlægges","Den abbasidiske kalif al-Mansur grundlægger Bagdad, som bliver en af verdens største byer og et videnscenter.",["historie","videnskab"]],["Baghdad is founded","The Abbasid caliph al-Mansur founds Baghdad, which becomes one of the world's largest cities and a centre of learning.",["history","science"]],"Al-Tabari; Encyclopaedia of Islam, 'Baghdad'"),
+ E(830,"debat",["Visdommens Hus i Bagdad","Under kalif al-Ma'mun oversættes græske, persiske og indiske værker til arabisk. Historikere diskuterer, hvor stor og formel institutionen egentlig var.",["videnskab","historie"]],["The House of Wisdom in Baghdad","Under Caliph al-Ma'mun, Greek, Persian and Indian works are translated into Arabic. Historians debate how large and formal the institution really was.",["science","history"]],"Dimitri Gutas, Greek Thought, Arabic Culture (1998)"),
+ E(1037,"kilde",["Ibn Sina dør","Lægen og filosoffen bag Lægevidenskabens Kanon, som blev brugt i europæisk lægeuddannelse i århundreder.",["videnskab","tænkere"]],["Ibn Sina dies","The physician and philosopher behind the Canon of Medicine, used in European medical education for centuries.",["science","thinkers"]],"Ibn Sina, al-Qanun fi al-Tibb"),
+ E(1187,"kilde",["Saladin generobrer Jerusalem","Salah ad-Din tager Jerusalem fra korsfarerne og lader de kristne indbyggere købe sig fri frem for at blive dræbt.",["historie"]],["Saladin retakes Jerusalem","Salah ad-Din takes Jerusalem from the Crusaders and lets the Christian inhabitants ransom themselves rather than be killed.",["history"]],"Baha ad-Din ibn Shaddad, Saladins biografi"),
+ E(1258,"kilde",["Mongolerne indtager Bagdad","Mongolske hære ødelægger Bagdad, og det abbasidiske kalifat i byen ender. Store biblioteker går tabt.",["historie"]],["The Mongols take Baghdad","Mongol armies destroy Baghdad and the Abbasid caliphate there ends. Great libraries are lost.",["history"]],"Encyclopaedia of Islam, 'Baghdad'"),
+ E(1453,"kilde",["Osmannerne indtager Konstantinopel","Sultan Mehmed 2. erobrer byen, som bliver Istanbul og centrum i Det Osmanniske Rige.",["historie","europa"]],["The Ottomans take Constantinople","Sultan Mehmed II conquers the city, which becomes Istanbul and the centre of the Ottoman Empire.",["history","europe"]],"Halil İnalcık, The Ottoman Empire: The Classical Age"),
+ E(1492,"kilde",["Granada falder","Det sidste muslimske kongedømme i Spanien overgiver sig. Senere tvinges muslimer til at konvertere eller forlade landet.",["historie","europa"]],["Granada falls","The last Muslim kingdom in Spain surrenders. Later, Muslims are forced to convert or leave the country.",["history","europe"]],"L. P. Harvey, Islamic Spain 1250 to 1500"),
+ E(1924.2,"kilde",["Det osmanniske kalifat afskaffes","Den tyrkiske republik afskaffer kalifatet i marts 1924.",["historie"]],["The Ottoman caliphate is abolished","The Turkish Republic abolishes the caliphate in March 1924.",["history"]],"Den tyrkiske nationalforsamling, 3. marts 1924"),
+ E(1968,"kilde",["Gæstearbejdere kommer til Danmark","Fra slutningen af 1960'erne kommer arbejdere fra bl.a. Tyrkiet, Pakistan og Jugoslavien. Mange bliver, og islam bliver en del af Danmark.",["islam i Danmark"]],["Guest workers come to Denmark","From the late 1960s workers arrive from Turkey, Pakistan and Yugoslavia among others. Many stay, and Islam becomes part of Denmark.",["islam in Denmark"]],"danmarkshistorien.dk (Aarhus Universitet)"),
+ E(2005,"kilde",["Muhammed-tegningerne","Jyllands-Posten bringer tegninger af profeten i september 2005. Det fører til en international krise i 2006 og en lang debat om ytringsfrihed og respekt.",["islam i Danmark"]],["The Muhammad cartoons","Jyllands-Posten publishes cartoons of the Prophet in September 2005. It leads to an international crisis in 2006 and a long debate on free speech and respect.",["islam in Denmark"]],"danmarkshistorien.dk; Jytte Klausen, The Cartoons That Shook the World (2009)")];
+BASE.forEach((e,i)=>e._i=i);
+
+const RTL=/^(ar|ur|fa|he|ps|ku|dv|yi)/i;
+// Fællesskab: nye tekster på alle sprog
+const NYT_FAELLES={"da": {"nav_faelles": "Fællesskab", "door4t": "Fællesskab", "door4": "Mød andre muslimer, chat i private grupper og ring til dine venner.", "door4go": "Gå ind"}, "en": {"nav_faelles": "Community", "door4t": "Community", "door4": "Meet other Muslims, chat in private groups and call your friends.", "door4go": "Enter"}, "de": {"nav_faelles": "Gemeinschaft", "door4t": "Gemeinschaft", "door4": "Triff andere Muslime, chatte in privaten Gruppen und ruf deine Freunde an.", "door4go": "Öffnen"}, "fr": {"nav_faelles": "Communauté", "door4t": "Communauté", "door4": "Rencontre d'autres musulmans, discute en groupes privés et appelle tes amis.", "door4go": "Entrer"}, "es": {"nav_faelles": "Comunidad", "door4t": "Comunidad", "door4": "Conoce a otros musulmanes, chatea en grupos privados y llama a tus amigos.", "door4go": "Entrar"}, "it": {"nav_faelles": "Comunità", "door4t": "Comunità", "door4": "Incontra altri musulmani, chatta in gruppi privati e chiama i tuoi amici.", "door4go": "Entra"}, "pt": {"nav_faelles": "Comunidade", "door4t": "Comunidade", "door4": "Conhece outros muçulmanos, conversa em grupos privados e liga aos teus amigos.", "door4go": "Entrar"}, "nl": {"nav_faelles": "Gemeenschap", "door4t": "Gemeenschap", "door4": "Ontmoet andere moslims, chat in privégroepen en bel je vrienden.", "door4go": "Openen"}, "sv": {"nav_faelles": "Gemenskap", "door4t": "Gemenskap", "door4": "Träffa andra muslimer, chatta i privata grupper och ring dina vänner.", "door4go": "Gå in"}, "nb": {"nav_faelles": "Fellesskap", "door4t": "Fellesskap", "door4": "Møt andre muslimer, chat i private grupper og ring vennene dine.", "door4go": "Gå inn"}, "fi": {"nav_faelles": "Yhteisö", "door4t": "Yhteisö", "door4": "Tapaa muita muslimeja, keskustele yksityisissä ryhmissä ja soita ystävillesi.", "door4go": "Avaa"}, "is": {"nav_faelles": "Samfélag", "door4t": "Samfélag", "door4": "Hittu aðra múslima, spjallaðu í lokuðum hópum og hringdu í vini þína.", "door4go": "Opna"}, "pl": {"nav_faelles": "Wspólnota", "door4t": "Wspólnota", "door4": "Poznaj innych muzułmanów, rozmawiaj w prywatnych grupach i dzwoń do przyjaciół.", "door4go": "Wejdź"}, "cs": {"nav_faelles": "Komunita", "door4t": "Komunita", "door4": "Poznej další muslimy, chatuj v soukromých skupinách a volej přátelům.", "door4go": "Vstoupit"}, "sk": {"nav_faelles": "Komunita", "door4t": "Komunita", "door4": "Spoznaj ďalších moslimov, chatuj v súkromných skupinách a volaj priateľom.", "door4go": "Vstúpiť"}, "sl": {"nav_faelles": "Skupnost", "door4t": "Skupnost", "door4": "Spoznaj druge muslimane, klepetaj v zasebnih skupinah in kliči prijatelje.", "door4go": "Vstopi"}, "hu": {"nav_faelles": "Közösség", "door4t": "Közösség", "door4": "Ismerj meg más muszlimokat, csevegj privát csoportokban, és hívd fel a barátaidat.", "door4go": "Belépés"}, "ro": {"nav_faelles": "Comunitate", "door4t": "Comunitate", "door4": "Cunoaște alți musulmani, discută în grupuri private și sună-ți prietenii.", "door4go": "Intră"}, "bg": {"nav_faelles": "Общност", "door4t": "Общност", "door4": "Запознай се с други мюсюлмани, пиши в лични групи и се обаждай на приятели.", "door4go": "Влез"}, "el": {"nav_faelles": "Κοινότητα", "door4t": "Κοινότητα", "door4": "Γνώρισε άλλους μουσουλμάνους, συνομίλησε σε ιδιωτικές ομάδες και κάλεσε φίλους.", "door4go": "Είσοδος"}, "hr": {"nav_faelles": "Zajednica", "door4t": "Zajednica", "door4": "Upoznaj druge muslimane, dopisuj se u privatnim grupama i zovi prijatelje.", "door4go": "Uđi"}, "bs": {"nav_faelles": "Zajednica", "door4t": "Zajednica", "door4": "Upoznaj druge muslimane, dopisuj se u privatnim grupama i zovi prijatelje.", "door4go": "Uđi"}, "sr": {"nav_faelles": "Zajednica", "door4t": "Zajednica", "door4": "Upoznaj druge muslimane, dopisuj se u privatnim grupama i zovi prijatelje.", "door4go": "Uđi"}, "mk": {"nav_faelles": "Заедница", "door4t": "Заедница", "door4": "Запознај други муслимани, разговарај во приватни групи и јави им се на пријателите.", "door4go": "Влези"}, "sq": {"nav_faelles": "Komuniteti", "door4t": "Komuniteti", "door4": "Njihu me myslimanë të tjerë, bisedo në grupe private dhe telefono miqtë.", "door4go": "Hyr"}, "et": {"nav_faelles": "Kogukond", "door4t": "Kogukond", "door4": "Kohtu teiste moslemitega, vestle privaatsetes gruppides ja helista sõpradele.", "door4go": "Sisene"}, "lv": {"nav_faelles": "Kopiena", "door4t": "Kopiena", "door4": "Iepazīsties ar citiem musulmaņiem, tērzē privātās grupās un zvani draugiem.", "door4go": "Ieiet"}, "lt": {"nav_faelles": "Bendruomenė", "door4t": "Bendruomenė", "door4": "Susipažink su kitais musulmonais, bendrauk privačiose grupėse ir skambink draugams.", "door4go": "Įeiti"}, "ga": {"nav_faelles": "Pobal", "door4t": "Pobal", "door4": "Buail le Moslamaigh eile, déan comhrá i ngrúpaí príobháideacha agus glaoigh ar do chairde.", "door4go": "Isteach"}, "mt": {"nav_faelles": "Komunità", "door4t": "Komunità", "door4": "Iltaqa' ma' Musulmani oħra, ċċettja fi gruppi privati u ċempel lil sħabek.", "door4go": "Idħol"}, "uk": {"nav_faelles": "Спільнота", "door4t": "Спільнота", "door4": "Знайомся з іншими мусульманами, спілкуйся в приватних групах і телефонуй друзям.", "door4go": "Увійти"}, "ru": {"nav_faelles": "Сообщество", "door4t": "Сообщество", "door4": "Знакомься с другими мусульманами, общайся в закрытых группах и звони друзьям.", "door4go": "Войти"}, "tr": {"nav_faelles": "Topluluk", "door4t": "Topluluk", "door4": "Diğer Müslümanlarla tanış, özel gruplarda sohbet et ve arkadaşlarını ara.", "door4go": "Gir"}};
+for(const c in NYT_FAELLES)T[c]=Object.assign(T[c]||{},NYT_FAELLES[c]);
+const extra=ls.get("nur_trans",{});
+let lang=ls.get("nur_lang",null);
+if(!lang){let b=(navigator.language||"en").slice(0,2).toLowerCase();if(b==="no"||b==="nn")b="nb";lang=b}
+const base=()=>lang==="da"?"da":"en";
+function t(k,vars){let s=(L()&&L().t&&L().t[k])||(T[lang]&&T[lang][k])||T[base()][k]||T.da[k]||k;
+  if(vars)for(const v in vars)s=s.replace("{"+v+"}",vars[v]);return s}
+function d(key,obj){return (L()&&L().d&&L().d[key])||obj[lang]||obj[base()]||obj.da}
+const LANGS=[["da","Dansk"],["en","English"],["de","Deutsch"],["fr","Français"],["es","Español"],["it","Italiano"],["pt","Português"],["nl","Nederlands"],
+ ["sv","Svenska"],["nb","Norsk"],["fi","Suomi"],["is","Íslenska"],["pl","Polski"],["cs","Čeština"],["sk","Slovenčina"],["sl","Slovenščina"],["hu","Magyar"],
+ ["ro","Română"],["bg","Български"],["el","Ελληνικά"],["hr","Hrvatski"],["bs","Bosanski"],["sr","Srpski"],["mk","Македонски"],["sq","Shqip"],
+ ["et","Eesti"],["lv","Latviešu"],["lt","Lietuvių"],["ga","Gaeilge"],["mt","Malti"],["uk","Українська"],["ru","Русский"],["tr","Türkçe"]];
+const FILLANG=new Set(LANGS.map(l=>l[0]).filter(c=>c!=="da"&&c!=="en"));
+const filer={};
+function langName(c){const l=LANGS.find(x=>x[0]===c);return l?l[1]:(extra[c]?extra[c].name:c)}
+const L=()=>filer[lang]||extra[lang];
+const ld={el:()=>document.getElementById("loader"),
+  show(title,sub,pct){this.el().hidden=false;document.getElementById("ld-title").textContent=title;document.getElementById("ld-sub").textContent=sub||"";
+    const b=document.getElementById("ld-bar");b.classList.toggle("indef",pct==null);b.firstElementChild.style.width=pct==null?"":pct+"%"},
+  hide(){this.el().hidden=true}};
+async function hentSprog(code){if(code==="da"||code==="en"||filer[code]||!FILLANG.has(code))return true;
+  ld.show(langName(code),"",null);
+  try{const r=await fetch("lang/"+code+".json");if(!r.ok)throw 0;filer[code]=await r.json();return true}catch(e){return false}finally{ld.hide()}}
+async function vaelg(code){if(await hentSprog(code)){lang=code;ls.set("nur_lang",lang);applyLang()}}
+
+let sampleFn=null,kanBilleder=false;
+const MODEL="claude-sonnet-5-5";
+const egenNoegle=()=>ls.get("nur_key","");
+const harAI=()=>!!sampleFn||!!egenNoegle();
+function noteAI(){const ok=harAI();document.getElementById("cnote").textContent=ok?t("aiNote"):t("needAI");
+  document.getElementById("csend").disabled=!ok;document.getElementById("s-go").disabled=!ok;document.getElementById("translate").disabled=!ok}
+const fileB64=f=>new Promise((r,j)=>{const fr=new FileReader();fr.onload=()=>r(String(fr.result).split(",")[1]);fr.onerror=j;fr.readAsDataURL(f)});
+async function ai(input,{json=false,onText,signal,images,maxTokens=2000}={}){
+  if(sampleFn){const o={cache:false};if(signal)o.signal=signal;if(onText)o.onText=onText;if(images)o.images=images;
+    return json?await sampleFn.json(input,o):(await sampleFn(input,o)).text}
+  const key=egenNoegle();if(!key)throw{code:"no_ai"};
+  let msgs=typeof input==="string"?[{role:"user",content:input}]:input;
+  if(images&&images.length){const blocks=[];for(const f of images)blocks.push({type:"image",source:{type:"base64",media_type:f.type||"image/jpeg",data:await fileB64(f)}});
+    const last=msgs[msgs.length-1];msgs=[...msgs.slice(0,-1),{role:"user",content:[...blocks,{type:"text",text:last.content}]}]}
+  let res;try{res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal,headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model:MODEL,max_tokens:maxTokens,messages:msgs})})}catch(e){throw e&&e.name==="AbortError"?{code:"aborted"}:{code:"network"}}
+  if(res.status===401||res.status===403)throw{code:"bad_key"};if(res.status===429)throw{code:"rate_limited"};if(!res.ok)throw{code:"http"};
+  const j=await res.json();const text=(j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+  if(onText)onText({text});
+  if(!json)return text;const m=text.match(/[\[{][\s\S]*[\]}]/);if(!m)throw{code:"parse"};return JSON.parse(m[0])}
+const fejlTxt=e=>({not_granted:t("notGranted"),rate_limited:t("rateLimited"),aborted:t("stopped"),bad_key:t("badKey"),no_ai:t("needAI")}[e&&e.code]||t("genericErr"));
+
+const views=["hjem","laer","spoerg","undersoeg","basis","hjaelp"];
+function go(v){views.forEach(x=>document.getElementById("v-"+x).hidden=x!==v);
+  const navV=v==="basis"?"laer":v;document.querySelectorAll("nav.bottom button").forEach(b=>{if(b.dataset.go===navV)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current")});
+  window.scrollTo(0,0);if(v==="hjem")drawPattern()}
+document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>go(b.dataset.go)));
+document.querySelectorAll("[data-href]").forEach(b=>b.addEventListener("click",()=>{location.href=b.dataset.href}));
+if(location.hash&&views.includes(location.hash.slice(1)))go(location.hash.slice(1));
+function drawPattern(){const c=document.getElementById("pattern");if(!c||!c.offsetWidth)return;
+  const r=window.devicePixelRatio||1,w=c.offsetWidth,h=c.offsetHeight;c.width=w*r;c.height=h*r;const x=c.getContext("2d");x.scale(r,r);
+  x.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue("--gold").trim()||"#D4AF6A";x.lineWidth=.7;const s=56;
+  for(let i=-1;i<w/s+1;i++)for(let j=-1;j<h/s+1;j++){const cx=i*s+s/2,cy=j*s+s/2,a=s*.34;x.globalAlpha=.55*Math.max(0,1-(cy/h)*1.1);
+    for(const rot of[0,Math.PI/4]){x.beginPath();for(let k=0;k<4;k++){const q=rot+k*Math.PI/2;x.lineTo(cx+Math.cos(q)*a*1.41,cy+Math.sin(q)*a*1.41)}x.closePath();x.stroke()}
+    x.beginPath();x.arc(cx,cy,a*.42,0,Math.PI*2);x.stroke()}}
+addEventListener("resize",drawPattern);
+
+const dag=Math.floor(Date.now()/864e5);let ayahI=dag%AYAT.length;
+function visAyah(){const a=AYAT[ayahI];document.getElementById("d-ar").textContent=a[0];document.getElementById("d-mean").textContent=d("ayah"+ayahI,a[1]);document.getElementById("d-ref").textContent=a[2]}
+function visHadith(){const i=dag%HADITH.length,h=HADITH[i];document.getElementById("h-txt").textContent=d("hadith"+i,h[0]);document.getElementById("h-ref").textContent=h[1]}
+document.getElementById("d-next").onclick=()=>{ayahI=(ayahI+1)%AYAT.length;visAyah()};
+
+let laert=ls.get("nur_laert",[]);
+const kort=[...document.querySelectorAll("#v-laer article[data-k]")];
+function visLaert(){kort.forEach(k=>{const b=k.querySelector(".check"),on=laert.includes(k.dataset.k);b.setAttribute("aria-pressed",on);b.textContent=on?t("marked"):t("mark")});
+  document.getElementById("prog").style.width=Math.round(laert.length/kort.length*100)+"%";document.getElementById("progtxt").textContent=t("progOf",{a:laert.length,b:kort.length})}
+kort.forEach(k=>k.querySelector(".check").onclick=()=>{const id=k.dataset.k;laert=laert.includes(id)?laert.filter(x=>x!==id):[...laert,id];ls.set("nur_laert",laert);visLaert()});
+function visFatiha(){document.getElementById("fatiha").innerHTML=FAT.map((v,i)=>`<div class="vers"><span class="nr"><span>${i+1}</span></span><div><p class="ar" lang="ar">${v[0]}</p><p class="tr">${v[1]}</p><p>${esc(d("fatiha"+i,v[2]))}</p></div></div>`).join("")}
+
+const ORD=[
+["Allah","ٱللَّٰه",{da:"Det arabiske ord for Gud. Arabisktalende kristne bruger samme ord.",en:"The Arabic word for God. Arabic-speaking Christians use the same word."}],
+["Bismillah","بِسْمِ ٱللَّٰهِ",{da:"\"I Guds navn\". Siges før man spiser, går i gang med noget eller læser.",en:"\"In the name of God\". Said before eating, starting something or reading."}],
+["Alhamdulillah","ٱلْحَمْدُ لِلَّٰهِ",{da:"\"Al lovprisning tilhører Gud\". Siges når noget går godt, og som tak.",en:"\"All praise belongs to God\". Said when something goes well, and as thanks."}],
+["Insha'Allah","إِن شَاءَ ٱللَّٰهُ",{da:"\"Hvis Gud vil\". Siges om ting, man planlægger i fremtiden.",en:"\"If God wills\". Said about plans for the future."}],
+["Masha'Allah","مَا شَاءَ ٱللَّٰهُ",{da:"\"Det Gud har villet\". Siges når man ser noget godt eller smukt.",en:"\"What God has willed\". Said when seeing something good or beautiful."}],
+["Subhanallah","سُبْحَانَ ٱللَّٰهِ",{da:"\"Gud er hævet over alt\". Udtryk for undren og lovprisning.",en:"\"Glory be to God\". An expression of wonder and praise."}],
+["Assalamu alaikum","ٱلسَّلَامُ عَلَيْكُمْ",{da:"\"Fred være med jer\". Den islamiske hilsen. Svaret er wa alaikum as-salam.",en:"\"Peace be upon you\". The Islamic greeting. The reply is wa alaikum as-salam."}],
+["Shahada","شَهَادَة",{da:"Trosbekendelsen. Når man siger den oprigtigt, bliver man muslim.",en:"The declaration of faith. Saying it sincerely makes one a Muslim."}],
+["Salah","صَلَاة",{da:"Den faste bøn, fem gange om dagen.",en:"The obligatory prayer, five times a day."}],
+["Du'a","دُعَاء",{da:"Personlig bøn med egne ord, på ethvert sprog.",en:"Personal prayer in your own words, in any language."}],
+["Wudu","وُضُوء",{da:"Den rituelle vask før bønnen.",en:"The ritual washing before prayer."}],
+["Rak'ah","رَكْعَة",{da:"En runde i bønnen: stå, bukke, kaste sig ned to gange.",en:"One unit of prayer: standing, bowing, prostrating twice."}],
+["Qibla","قِبْلَة",{da:"Retningen mod Kaaba i Mekka, som man vender sig mod i bønnen.",en:"The direction of the Kaaba in Mecca, faced during prayer."}],
+["Jumu'ah","جُمُعَة",{da:"Fredagsbønnen i moskeen ved middagstid, med en prædiken (khutbah).",en:"The Friday prayer at the mosque at midday, with a sermon (khutbah)."}],
+["Masjid","مَسْجِد",{da:"Moské. Ordet betyder \"stedet, hvor man kaster sig ned\".",en:"Mosque. The word means \"place of prostration\"."}],
+["Imam","إِمَام",{da:"Den, der leder bønnen. Ofte også en lærer, man kan spørge.",en:"The one who leads the prayer. Often also a teacher you can ask."}],
+["Quran","قُرْآن",{da:"Islams hellige bog. Ordet betyder \"det, der reciteres\".",en:"Islam's holy book. The word means \"that which is recited\"."}],
+["Surah","سُورَة",{da:"Et kapitel i Koranen. Der er 114.",en:"A chapter of the Quran. There are 114."}],
+["Ayah","آيَة",{da:"Et vers i Koranen. Ordet betyder også \"tegn\".",en:"A verse of the Quran. The word also means \"sign\"."}],
+["Hadith","حَدِيث",{da:"En beretning om, hvad profeten sagde eller gjorde.",en:"A report of what the Prophet said or did."}],
+["Sunnah","سُنَّة",{da:"Profetens praksis og eksempel. Også om frivillige gode handlinger.",en:"The Prophet's practice and example. Also used for voluntary good deeds."}],
+["Halal","حَلَال",{da:"Det, der er tilladt.",en:"What is permitted."}],
+["Haram","حَرَام",{da:"Det, der er forbudt.",en:"What is forbidden."}],
+["Ramadan","رَمَضَان",{da:"Fastemåneden, hvor man faster fra daggry til solnedgang.",en:"The month of fasting, from dawn until sunset."}],
+["Suhur · Iftar","سُحُور · إِفْطَار",{da:"Måltidet før daggry, og måltidet der bryder fasten ved solnedgang.",en:"The meal before dawn, and the meal that breaks the fast at sunset."}],
+["Eid","عِيد",{da:"Højtid. Eid al-Fitr efter ramadan og Eid al-Adha under hajj.",en:"Celebration. Eid al-Fitr after Ramadan and Eid al-Adha during hajj."}],
+["Zakat · Sadaqah","زَكَاة · صَدَقَة",{da:"Zakat er den faste årlige almisse. Sadaqah er frivillig velgørenhed.",en:"Zakat is the fixed yearly charity. Sadaqah is voluntary charity."}],
+["Umrah","عُمْرَة",{da:"Den mindre pilgrimsrejse til Mekka, som kan foretages hele året.",en:"The lesser pilgrimage to Mecca, which can be made all year."}],
+["Iman","إِيمَان",{da:"Tro.",en:"Faith."}],
+["Taqwa","تَقْوَى",{da:"Gudsbevidsthed: at leve med Gud i tankerne.",en:"God-consciousness: living with God in mind."}],
+["Tawbah","تَوْبَة",{da:"At vende om og angre. Døren står altid åben.",en:"Turning back and repenting. The door is always open."}],
+["Sabr","صَبْر",{da:"Tålmodighed og udholdenhed.",en:"Patience and endurance."}],
+["Shukr","شُكْر",{da:"Taknemmelighed.",en:"Gratitude."}],
+["Tawakkul","تَوَكُّل",{da:"Tillid til Gud, efter at man selv har gjort sit.",en:"Trust in God, after doing your own part."}],
+["Qadar","قَدَر",{da:"Guds forudbestemmelse. Man handler stadig selv og bærer ansvar.",en:"Divine decree. You still act yourself and are responsible."}],
+["Istikhara","ٱسْتِخَارَة",{da:"Bønnen om vejledning, når man står over for et valg.",en:"The prayer for guidance when facing a decision."}],
+["Waswasa","وَسْوَسَة",{da:"Hvisken: tvivl og dårlige tanker, man ikke selv har valgt. Sura an-Nas handler om at søge beskyttelse mod den.",en:"Whispering: doubts and bad thoughts you did not choose. Surah an-Nas is about seeking protection from it."}],
+["Jinn","جِنّ",{da:"Usynlige skabninger, som Koranen nævner. Islam advarer mod at søge kontakt med dem eller lade frygt for dem styre ens liv.",en:"Unseen beings mentioned in the Quran. Islam warns against seeking contact with them or letting fear of them rule your life."}],
+["Akhirah","آخِرَة",{da:"Det evige liv efter døden.",en:"The everlasting life after death."}],
+["Fitrah","فِطْرَة",{da:"Den naturlige, gode tilstand mennesket er skabt med.",en:"The natural, good state humans are created with."}],
+["Ummah","أُمَّة",{da:"Det muslimske fællesskab i hele verden.",en:"The worldwide Muslim community."}],
+["Madhhab","مَذْهَب",{da:"En lovskole. De fire sunnimuslimske er hanafi, maliki, shafi'i og hanbali.",en:"A school of law. The four Sunni ones are Hanafi, Maliki, Shafi'i and Hanbali."}],
+["Fatwa","فَتْوَى",{da:"En juridisk udtalelse fra en lærd. Ikke noget en app eller AI kan give.",en:"A legal opinion from a scholar. Not something an app or AI can give."}]];
+function visOrd(){const q=(document.getElementById("tsog").value||"").trim().toLowerCase();
+  const L2=ORD.filter(o=>!q||(o[0]+" "+d("ord"+ORD.indexOf(o),o[2])).toLowerCase().includes(q));
+  document.getElementById("terms").innerHTML=L2.map(o=>{const i=ORD.indexOf(o);return `<div class="term"><b>${esc(o[0])}</b><p class="ar" lang="ar">${o[1]}</p><p>${esc(d("ord"+i,o[2]))}</p></div>`}).join("")||`<p class="muted">${esc(t("noMatch"))}</p>`}
+document.getElementById("tsog").addEventListener("input",visOrd);
+
+/* ================= BED MED MIG ================= */
+const AR={
+ takbir:["ٱللَّٰهُ أَكْبَرُ","Allāhu akbar"],
+ ikhlas:["قُلْ هُوَ ٱللَّٰهُ أَحَدٌ ۝ ٱللَّٰهُ ٱلصَّمَدُ ۝ لَمْ يَلِدْ وَلَمْ يُولَدْ ۝ وَلَمْ يَكُن لَّهُۥ كُفُوًا أَحَدٌ","Qul huwa-llāhu aḥad. Allāhu ṣ-ṣamad. Lam yalid wa lam yūlad. Wa lam yakun lahū kufuwan aḥad."],
+ ruku:["سُبْحَانَ رَبِّيَ ٱلْعَظِيمِ","Subḥāna rabbiya l-ʿaẓīm"],
+ itidal:["سَمِعَ ٱللَّٰهُ لِمَنْ حَمِدَهُ ۝ رَبَّنَا وَلَكَ ٱلْحَمْدُ","Samiʿa-llāhu liman ḥamidah. Rabbanā wa laka l-ḥamd."],
+ sujud:["سُبْحَانَ رَبِّيَ ٱلْأَعْلَىٰ","Subḥāna rabbiya l-aʿlā"],
+ jalsa:["رَبِّ ٱغْفِرْ لِي","Rabbi ghfir lī"],
+ tash:["ٱلتَّحِيَّاتُ لِلَّٰهِ وَٱلصَّلَوَاتُ وَٱلطَّيِّبَاتُ، ٱلسَّلَامُ عَلَيْكَ أَيُّهَا ٱلنَّبِيُّ وَرَحْمَةُ ٱللَّٰهِ وَبَرَكَاتُهُ، ٱلسَّلَامُ عَلَيْنَا وَعَلَىٰ عِبَادِ ٱللَّٰهِ ٱلصَّالِحِينَ، أَشْهَدُ أَنْ لَا إِلَٰهَ إِلَّا ٱللَّٰهُ وَأَشْهَدُ أَنَّ مُحَمَّدًا عَبْدُهُ وَرَسُولُهُ","At-taḥiyyātu lillāhi wa ṣ-ṣalawātu wa ṭ-ṭayyibāt. As-salāmu ʿalayka ayyuha n-nabiyyu wa raḥmatu llāhi wa barakātuh. As-salāmu ʿalaynā wa ʿalā ʿibādi llāhi ṣ-ṣāliḥīn. Ashhadu an lā ilāha illā llāh, wa ashhadu anna Muḥammadan ʿabduhū wa rasūluh."],
+ salawat:["ٱللَّٰهُمَّ صَلِّ عَلَىٰ مُحَمَّدٍ وَعَلَىٰ آلِ مُحَمَّدٍ، كَمَا صَلَّيْتَ عَلَىٰ إِبْرَاهِيمَ وَعَلَىٰ آلِ إِبْرَاهِيمَ، إِنَّكَ حَمِيدٌ مَجِيدٌ، ٱللَّٰهُمَّ بَارِكْ عَلَىٰ مُحَمَّدٍ وَعَلَىٰ آلِ مُحَمَّدٍ، كَمَا بَارَكْتَ عَلَىٰ إِبْرَاهِيمَ وَعَلَىٰ آلِ إِبْرَاهِيمَ، إِنَّكَ حَمِيدٌ مَجِيدٌ","Allāhumma ṣalli ʿalā Muḥammadin wa ʿalā āli Muḥammad, kamā ṣallayta ʿalā Ibrāhīma wa ʿalā āli Ibrāhīm, innaka ḥamīdun majīd. Allāhumma bārik ʿalā Muḥammadin wa ʿalā āli Muḥammad, kamā bārakta ʿalā Ibrāhīma wa ʿalā āli Ibrāhīm, innaka ḥamīdun majīd."],
+ salam:["ٱلسَّلَامُ عَلَيْكُمْ وَرَحْمَةُ ٱللَّٰهِ","As-salāmu ʿalaykum wa raḥmatu llāh"]};
+const FATIHA_AR=()=>FAT.map(f=>f[0]).join(" ۝ "),FATIHA_TR=()=>FAT.map(f=>f[1]).join(" "),FATIHA_M=()=>FAT.map((f,i)=>d("fatiha"+i,f[2])).join(" ");
+const P=(c,g)=>`<svg viewBox="0 0 120 150" fill="none" stroke="var(--gold)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">${g}<line x1="8" y1="140" x2="112" y2="140" stroke="var(--line)" stroke-width="3"/></svg>`;
+const FIGS={
+ raise:P(0,'<circle cx="60" cy="24" r="10"/><path d="M60 34v46M60 80l-12 58M60 80l12 58M60 44l-16-6-2-18M60 44l16-6 2-18"/>'),
+ stand:P(0,'<circle cx="60" cy="24" r="10"/><path d="M60 34v46M60 80l-12 58M60 80l12 58M60 44l-12 14 14 2M60 44l12 14-12 2"/>'),
+ bow:P(0,'<circle cx="18" cy="62" r="10"/><path d="M28 64h48M76 64l-6 74M76 64l8 74M40 64l2 36M50 64l4 36"/>'),
+ prostrate:P(0,'<circle cx="22" cy="126" r="9"/><path d="M30 120l34-28 30 20M94 112l-6 26M94 112l14 26M40 116l-8 22M52 108l-4 30"/>'),
+ sit:P(0,'<circle cx="56" cy="34" r="10"/><path d="M56 44v48M56 92l34 0 6 44M56 92l-8 44h40M56 58l12 24M56 58l20 22"/>'),
+ turnR:P(0,'<circle cx="56" cy="34" r="10"/><path d="M56 44v48M56 92l34 0 6 44M56 92l-8 44h40M56 58l12 24M56 58l20 22"/><path d="M78 30h22M92 22l8 8-8 8" stroke-width="3"/>'),
+ turnL:P(0,'<circle cx="56" cy="34" r="10"/><path d="M56 44v48M56 92l34 0 6 44M56 92l-8 44h40M56 58l12 24M56 58l20 22"/><path d="M34 30H12M20 22l-8 8 8 8" stroke-width="3"/>'),
+ wudu:P(0,'<circle cx="60" cy="24" r="10"/><path d="M60 34v46M60 80l-12 58M60 80l12 58M60 46l-14 20 14 4 14-4-14-20"/><path d="M46 92c0 6 4 6 4 10M74 92c0 6-4 6-4 10" stroke-width="3"/>'),
+ done:P(0,'<circle cx="60" cy="60" r="34" stroke-width="3"/><path d="M44 60l12 12 22-24"/>')};
+function byg(r,wudu){const S=[];
+  if(wudu)S.push({fig:"wudu",t:"f_wuduT",html:t("wudu")});
+  S.push({fig:"stand",t:"f_niyyaT",h:"f_niyyaH"});
+  S.push({fig:"raise",t:"f_takbirT",h:"f_takbirH",a:"takbir",m:"f_takbirM",rak:1});
+  for(let k=1;k<=r;k++){
+    S.push({fig:"stand",t:"f_qiyamT",h:"f_qiyamH",fat:1,rak:k});
+    if(k<=2)S.push({fig:"stand",t:"f_surahT",h:"f_surahH",a:"ikhlas",m:"f_ikhlasM",rak:k});
+    S.push({fig:"bow",t:"f_rukuT",h:"f_rukuH",a:"ruku",m:"f_rukuM",x3:1,rak:k});
+    S.push({fig:"stand",t:"f_itidalT",h:"f_itidalH",a:"itidal",m:"f_itidalM",rak:k});
+    S.push({fig:"prostrate",t:"f_sujudT",h:"f_sujudH",a:"sujud",m:"f_sujudM",x3:1,rak:k});
+    S.push({fig:"sit",t:"f_jalsaT",h:"f_jalsaH",a:"jalsa",m:"f_jalsaM",rak:k});
+    S.push({fig:"prostrate",t:"f_sujud2T",h:"f_sujud2H",a:"sujud",m:"f_sujudM",x3:1,rak:k});
+    if(k===2&&r>2){S.push({fig:"sit",t:"f_tashT",h:"f_tashFirstH",a:"tash",m:"f_tashM",rak:k});S.push({fig:"raise",t:"f_standT",h:"f_standH",a:"takbir",m:"f_takbirM",rak:k+1})}
+    else if(k<r)S.push({fig:"raise",t:"f_standT",h:"f_standH",a:"takbir",m:"f_takbirM",rak:k+1});
+  }
+  S.push({fig:"sit",t:"f_tashT",h:"f_tashH",a:"tash",m:"f_tashM",rak:r});
+  S.push({fig:"sit",t:"f_salawatT",h:"f_salawatH",a:"salawat",m:"f_salawatM",rak:r});
+  S.push({fig:"turnR",t:"f_salamRT",h:"f_salamH",a:"salam",m:"f_salamM",rak:r});
+  S.push({fig:"turnL",t:"f_salamLT",h:"f_salamLH",a:"salam",m:"f_salamM",rak:r});
+  S.push({fig:"done",t:"f_doneT",h:"f_doneH"});return S}
+let FS=[],fi=0,fR=2,wakeL=null;
+const tts=window.speechSynthesis||null;
+const arVoice=()=>tts?tts.getVoices().find(v=>/^ar/i.test(v.lang)):null;
+const langVoice=()=>tts?(tts.getVoices().find(v=>v.lang.toLowerCase().startsWith(lang))||null):null;
+function sig(txt,lng,voice,times){if(!tts||!txt)return;tts.cancel();for(let i=0;i<(times||1);i++){const u=new SpeechSynthesisUtterance(txt);u.lang=lng;if(voice)u.voice=voice;u.rate=lng.startsWith("ar")?.8:.95;tts.speak(u)}}
+function fCur(){const s=FS[fi];return{ar:s.fat?FATIHA_AR():s.a?AR[s.a][0]:"",tr:s.fat?FATIHA_TR():s.a?AR[s.a][1]:"",m:s.fat?FATIHA_M():s.m?t(s.m):""}}
+function laesAr(){const s=FS[fi],c=fCur();if(!c.ar)return;const v=arVoice();
+  if(v)sig(c.ar.replace(/۝/g,"،"),"ar-SA",v,s.x3?3:1);else{document.getElementById("f-voice").hidden=false;laesM()}}
+function laesM(){const c=fCur(),s=FS[fi];const txt=c.m||(s.h?document.getElementById("f-how").textContent:"");sig(txt,lang,langVoice(),1)}
+function visF(){const s=FS[fi],c=fCur();
+  document.getElementById("f-fig").innerHTML=FIGS[s.fig]||"";
+  document.getElementById("f-title").textContent=t(s.t);
+  document.getElementById("f-how").innerHTML=s.html?s.html:(s.h?esc(t(s.h)):"");
+  document.getElementById("f-rak").textContent=s.rak?t("rakOf",{a:s.rak,b:fR}):"";
+  const say=document.getElementById("f-say");say.hidden=!c.ar;
+  document.getElementById("f-ar").textContent=c.ar;document.getElementById("f-tr").textContent=c.tr;document.getElementById("f-mean").textContent=c.m;
+  document.getElementById("f-times").textContent=s.x3?t("times3"):"";document.getElementById("f-times").hidden=!s.x3;
+  document.getElementById("f-listen").hidden=!tts;document.getElementById("f-listenM").hidden=!tts;document.getElementById("f-voice").hidden=true;
+  document.getElementById("f-voice").textContent=t("noArVoice");
+  document.getElementById("f-prev").disabled=fi===0;
+  document.getElementById("f-next").textContent=fi===FS.length-1?t("finish"):t("next");
+  document.getElementById("f-prog").style.width=Math.round((fi+1)/FS.length*100)+"%";
+  document.getElementById("f-count").textContent=t("stepOf",{a:fi+1,b:FS.length});
+  if(document.getElementById("f-auto").checked&&tts){if(c.ar)laesAr();else if(s.h&&!s.html)sig(t(s.h),lang,langVoice(),1)}else if(tts)tts.cancel()}
+function aabnFlow(){document.getElementById("flow").hidden=false;document.getElementById("f-start").hidden=false;document.getElementById("f-run").hidden=true;
+  document.getElementById("f-prog").style.width="0%";document.getElementById("f-count").textContent="";document.getElementById("f-begin").focus()}
+function lukFlow(){document.getElementById("flow").hidden=true;if(tts)tts.cancel();try{wakeL&&wakeL.release()}catch(e){}wakeL=null}
+document.querySelectorAll("[data-flow]").forEach(b=>b.addEventListener("click",aabnFlow));
+document.querySelectorAll("#f-choose button").forEach(b=>b.onclick=()=>{fR=+b.dataset.r;document.querySelectorAll("#f-choose button").forEach(x=>x.setAttribute("aria-pressed",x===b))});
+document.getElementById("f-begin").onclick=async()=>{FS=byg(fR,document.getElementById("f-wudu").checked);fi=0;
+  document.getElementById("f-start").hidden=true;document.getElementById("f-run").hidden=false;
+  try{if(navigator.wakeLock)wakeL=await navigator.wakeLock.request("screen")}catch(e){}visF()};
+document.getElementById("f-next").onclick=()=>{if(fi<FS.length-1){fi++;visF();document.getElementById("flow").scrollTo(0,0)}else lukFlow()};
+document.getElementById("f-prev").onclick=()=>{if(fi>0){fi--;visF()}};
+document.getElementById("f-close").onclick=lukFlow;
+document.getElementById("f-listen").onclick=laesAr;document.getElementById("f-listenM").onclick=laesM;
+addEventListener("keydown",e=>{if(document.getElementById("flow").hidden||document.getElementById("f-run").hidden)return;
+  if(e.key==="ArrowRight")document.getElementById("f-next").click();if(e.key==="ArrowLeft")document.getElementById("f-prev").click();if(e.key==="Escape")lukFlow()});
+if(tts&&tts.onvoiceschanged!==undefined)tts.onvoiceschanged=()=>{};
+const ADDR=()=>{const a=ls.get("nur_addr","bror");return a==="bror"?"Address the user as \"bror\" (brother, akhi) now and then, naturally, translated to their language. Assume the user is a man.":a==="soester"?"Address the user as \"søster\" (sister, ukhti) now and then, naturally, translated to their language. Assume the user is a woman.":"Do not use brother or sister; address the user neutrally."};
+const NUR=()=>`You are "Nur", a calm and kind helper in an app for new Muslims and people exploring Islam. The app was made by Malik, a Danish Muslim.
+
+YOUR TASK
+- Help the user reflect on their life with Islam's own tools: istikhara (the prayer for guidance in decisions, Bukhari 1162), sabr (patience), shukr (gratitude), tawakkul (trust in God), du'a (personal prayer) and the understanding of qadar.
+- Explain the basics simply: the five pillars, salah, wudu, du'a, al-Fatiha, the history of Islam.
+- Cite verses (surah:verse) and hadith (collection and number) ONLY when you are sure. If unsure, say so and point to quran.com or sunnah.com.
+- Mainstream Sunni practice as default; briefly note where the schools of law differ. Be respectful of Shia Muslims and other faiths.
+
+LIMITS YOU ALWAYS KEEP
+- NEVER interpret events, dreams, numbers, names, dates or coincidences in the user's life as signs, messages or omens from God. If the user says something is a sign for them, acknowledge the feeling kindly and explain that Islam warns against reading omens (tiyara, Abu Dawud 3910) and that no new revelation comes after Muhammad, the seal of the prophets (Quran 33:40). Point to istikhara and a conversation with an imam.
+- Never say anyone is chosen, a prophet, the Mahdi, on a special mission or receiving revelation.
+- Do not issue fatwas. Refer personal religious rulings kindly to an imam or local mosque.
+- Do not comment on the user's mental health unless the user says they want to harm themselves or others, or are in danger. Only then: answer calmly and warmly and tell them to contact a local crisis line or emergency number (in Denmark: Livslinien 70 201 201, emergency 112).
+
+STYLE
+- Talk like a warm, grounded older sibling in the faith having a real conversation, not like a lecturer or a textbook. Relaxed everyday language, like texting a friend you trust.
+- ${ADDR()}
+- Keep it short: usually 2-5 sentences. One thought at a time. Ask a natural follow-up question when it helps the conversation move, instead of covering everything at once.
+- Show you heard them: reflect briefly what they said before answering.
+- Light, kind humour is fine. Never preachy, never guilt-tripping.
+- Always answer in the language the user writes in. No headings, no bullet lists unless they ask for steps.
+- You are a helper in an app, not a replacement for real people. When it fits, nudge them toward their mosque, friends or family too.`;
+let hist=[],ctl=null;
+const chatEl=document.getElementById("chat"),cin=document.getElementById("cin"),csend=document.getElementById("csend"),cstop=document.getElementById("cstop");
+function bob(cls,txt){const el=document.createElement("div");el.className="msg "+cls;el.textContent=txt;chatEl.appendChild(el);return el}
+const hilsen=bob("a","");
+function hilsenTxt(){const a=ls.get("nur_addr","bror");return a==="bror"?t("helloBror"):a==="soester"?t("helloSoester"):t("hello")}
+function visAddr(){const a=ls.get("nur_addr","bror");document.querySelectorAll("#addr button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.a===a))}
+document.querySelectorAll("#addr button").forEach(b=>b.onclick=()=>{ls.set("nur_addr",b.dataset.a);visAddr();if(hist.length===0)hilsen.textContent=hilsenTxt()});
+async function send(q){q=q.trim();await klar;if(!q||!harAI()||csend.disabled)return;
+  bob("u",q);cin.value="";hist.push({role:"user",content:q});
+  const out=bob("a wait",t("thinking"));csend.disabled=true;cstop.hidden=false;ctl=new AbortController();
+  let turns=hist.slice(-10);if(turns[0].role!=="user")turns=turns.slice(1);
+  turns=turns.map((m,i)=>i===0?{role:"user",content:NUR()+"\n\n---\nUser message:\n"+m.content}:m);
+  try{const r=await ai(turns,{signal:ctl.signal,onText:({text})=>{out.classList.remove("wait");out.textContent=text}});
+    out.classList.remove("wait");out.textContent=r;hist.push({role:"assistant",content:r})}
+  catch(e){out.classList.remove("wait");const keep=e&&e.text||"";out.textContent=keep||fejlTxt(e);if(keep)hist.push({role:"assistant",content:keep});else hist.pop()}
+  csend.disabled=!harAI();cstop.hidden=true;out.scrollIntoView({block:"nearest"})}
+document.getElementById("cf").addEventListener("submit",e=>{e.preventDefault();send(cin.value)});
+cin.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send(cin.value)}});
+cstop.onclick=()=>ctl?.abort();
+document.querySelectorAll("#forslag .chip").forEach(b=>b.onclick=()=>send(b.textContent));
+
+let egne=ls.get("nur_kilder",[]),filter=null,sog="";
+const fraBase=e=>({aar:e.aar,grad:e.grad,kilde:e.kilde,titel:d("b"+e._i+"t",e.titel),tekst:d("b"+e._i+"x",e.tekst),tema:d("b"+e._i+"m",e.tema)||[]});
+const alle=()=>[...BASE.map(fraBase),...egne.map((e,i)=>({...e,egen:i}))].sort((a,b)=>a.aar-b.aar);
+const aarTxt=a=>{a=Math.round(a);return a<0?Math.abs(a)+" "+t("yearBC"):t("yearAD")+" "+a};
+function renderBib(){const A=alle();
+  const temaer=[...new Set(A.flatMap(e=>e.tema||[]))].sort();if(filter&&!temaer.includes(filter))filter=null;
+  const fe=document.getElementById("filters");
+  fe.innerHTML=`<button class="chip" type="button" aria-pressed="${!filter}" data-t="">${esc(t("all"))}</button>`+temaer.map(x=>`<button class="chip" type="button" aria-pressed="${filter===x}" data-t="${esc(x)}">${esc(x)}</button>`).join("");
+  fe.querySelectorAll("button").forEach(b=>b.onclick=()=>{filter=b.dataset.t||null;renderBib()});
+  const D=A.filter(e=>(!filter||(e.tema||[]).includes(filter))&&(!sog||(e.titel+" "+e.tekst+" "+e.kilde).toLowerCase().includes(sog)));
+  document.getElementById("count").textContent=t("posts",{a:D.length,b:A.length});
+  document.getElementById("tl").innerHTML=D.map(e=>`<div class="entry"><article class="card">
+    <div class="meta"><span>${aarTxt(e.aar)}</span><span class="pill p-${esc(e.grad)}">${esc(t("g_"+e.grad))}</span>${e.egen!==undefined?`<button class="del" data-i="${e.egen}" type="button">${esc(t("del"))}</button>`:""}</div>
+    <h3>${esc(e.titel)}</h3><p>${esc(e.tekst)}</p><div class="tags">${(e.tema||[]).map(x=>"#"+esc(x)).join(" ")}</div>
+    <div class="src">${esc(t("srcL"))}: ${esc(e.kilde)}</div>${harAI()?`<button class="deepbtn" type="button" data-deep="${esc(e.titel)}" data-k="${esc(e.kilde)}" data-y="${Math.round(e.aar)}">${esc(t("deepBtn"))}</button><div class="deep" hidden></div>`:""}</article></div>`).join("")||`<p class="muted">${esc(t("noMatch"))}</p>`;
+  document.querySelectorAll(".del").forEach(b=>b.onclick=()=>{egne.splice(+b.dataset.i,1);ls.set("nur_kilder",egne);renderBib()});
+  document.querySelectorAll(".deepbtn").forEach(b=>b.onclick=()=>dyk(b))}
+let TAL=null;
+function visTal(){if(!TAL)return;const f=n=>Number(n).toLocaleString(lang);document.getElementById("c-me").innerHTML=t("counterMe",{a:f(TAL.me)});document.getElementById("c-all").innerHTML=t("counterAll",{a:f(TAL.all)});document.getElementById("counter").hidden=false}
+(async()=>{try{let me=ls.get("nur_nr",null),all;
+  if(!me){const r=await fetch("/api/count",{method:"POST"});if(!r.ok)return;const j=await r.json();me=all=j.count;ls.set("nur_nr",me)}
+  else{const r=await fetch("/api/count");if(!r.ok)return;all=(await r.json()).count}
+  if(typeof me!=="number"||typeof all!=="number")return;TAL={me,all};visTal()}catch(e){}})();
+const DYB={};
+async function dyk(b){const box=b.nextElementSibling,key=lang+"|"+b.dataset.deep;box.hidden=false;
+  if(DYB[key]){box.textContent=DYB[key];b.hidden=true;return}
+  b.disabled=true;box.textContent=t("deepLoading");
+  try{const r=await ai(`You are a careful, friendly history teacher in an app for new Muslims. Write in ${langName(lang)}.
+Go deeper on this entry from the app's timeline: "${b.dataset.deep}" (year ${b.dataset.y}; the app's source: ${b.dataset.k}).
+Write 180-260 words in plain language, no headings, short paragraphs:
+1) What happened and the background, 2) why it matters for Muslims today, 3) where Sunni and Shia Muslims or historians see it differently, if they do.
+End with a line "Læs videre:" (translated) naming 2-3 well-known, real works or sites to read further. Only name sources you are sure exist; never invent page numbers or quotes. If something is uncertain, say so.`,{maxTokens:1200,onText:({text})=>{box.textContent=text}});
+    DYB[key]=r;box.textContent=r;b.hidden=true}
+  catch(e){box.textContent=fejlTxt(e);b.disabled=false}}
+document.getElementById("sog").addEventListener("input",e=>{sog=e.target.value.trim().toLowerCase();renderBib()});
+
+let valgtFil=null;
+const sStat=document.getElementById("s-status"),fForm=document.getElementById("f");
+document.getElementById("s-file").addEventListener("change",async e=>{const f=e.target.files[0];valgtFil=null;if(!f)return;const fn=document.getElementById("s-fname");
+  if(f.type.startsWith("image/")){valgtFil=f;fn.textContent=t("photoChosen")+f.name}
+  else{document.getElementById("s-txt").value=(await f.text()).slice(0,20000);fn.textContent=t("textLoaded")+f.name}});
+const SCAN=()=>`You are a librarian in an app about Islam and Islamic history. Read the material below and create ONE entry for the app's library. Write "titel", "tekst", "tema" and "advarsel" in this language: ${langName(lang)}.
+Answer ONLY with JSON in this format:
+{"titel":"short title, max 8 words","aar":number (year of the event, negative for BC, 0 if unknown),"grad":"kilde"|"tradition"|"debat","tekst":"2-3 sentences in your own words about what the source says","kilde":"author, work, page or URL exactly as it appears in the material","tema":["1-3 short lowercase themes"],"advarsel":"empty string, or a short note if something is uncertain"}
+Rules:
+- "kilde" must appear in the material. NEVER invent a source. If none is there, set "kilde" to "" and explain in "advarsel".
+- "kilde" = documented in text or research, "tradition" = the traditional account, "debat" = debated among scholars.
+- Never reproduce long quotes; write in your own words.`;
+document.getElementById("s-go").onclick=async()=>{await klar;if(!harAI())return;
+  const txt=document.getElementById("s-txt").value.trim();
+  if(!txt&&!valgtFil){sStat.className="status err";sStat.textContent=t("scanEmpty");return}
+  if(valgtFil&&sampleFn&&!kanBilleder){sStat.className="status err";sStat.textContent=t("scanPhotoNo");return}
+  const btn=document.getElementById("s-go");btn.disabled=true;sStat.className="status";sStat.textContent=t("scanning");
+  try{const r=await ai(SCAN()+"\n\nMATERIAL:\n"+(txt||"(see attached photo)"),{json:true,images:valgtFil?[valgtFil]:undefined});
+    document.getElementById("f-titel").value=r.titel||"";document.getElementById("f-aar").value=r.aar??"";
+    document.getElementById("f-grad").value=["kilde","tradition","debat"].includes(r.grad)?r.grad:"kilde";
+    document.getElementById("f-tekst").value=r.tekst||"";document.getElementById("f-kilde").value=r.kilde||"";document.getElementById("f-tema").value=(r.tema||[]).join(", ");
+    fForm.hidden=false;sStat.className=r.advarsel?"status err":"status";sStat.textContent=r.advarsel||t("scanDone");fForm.scrollIntoView({block:"start",behavior:"smooth"})}
+  catch(e){sStat.className="status err";sStat.textContent=e&&e.code&&!["parse","http","network"].includes(e.code)?fejlTxt(e):t("scanFail")}
+  btn.disabled=!harAI()};
+document.getElementById("f-cancel").onclick=()=>{fForm.hidden=true;sStat.textContent=""};
+fForm.addEventListener("submit",ev=>{ev.preventDefault();const g=id=>document.getElementById(id).value.trim();const err=document.getElementById("f-err");
+  if(!g("f-titel")||!g("f-kilde")||g("f-aar")===""){err.textContent=t("needFields");return}
+  egne.push({titel:g("f-titel"),aar:+g("f-aar"),grad:g("f-grad"),tekst:g("f-tekst"),kilde:g("f-kilde"),tema:(g("f-tema")||"-").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean)});
+  ls.set("nur_kilder",egne);err.textContent="";fForm.reset();fForm.hidden=true;document.getElementById("s-txt").value="";valgtFil=null;
+  document.getElementById("s-fname").textContent=t("fileHint");sStat.className="status";sStat.textContent=t("saved");renderBib()});
+
+function renderLangs(){const codes=[...LANGS.map(l=>l[0]),...Object.keys(extra).filter(c=>!LANGS.some(l=>l[0]===c))];
+  const el=document.getElementById("langs");
+  el.innerHTML=codes.map(c=>`<button class="chip" type="button" aria-pressed="${c===lang}" data-l="${esc(c)}">${esc(langName(c))}</button>`).join("");
+  el.querySelectorAll("button").forEach(b=>b.onclick=()=>vaelg(b.dataset.l))}
+function applyLang(){
+  document.documentElement.lang=lang;
+  document.documentElement.dir=(L()&&L().dir)||(RTL.test(lang)?"rtl":"ltr");
+  document.querySelectorAll("[data-i]").forEach(el=>{el.innerHTML=t(el.dataset.i)});
+  document.querySelectorAll("[data-iph]").forEach(el=>{el.placeholder=t(el.dataset.iph)});
+  document.getElementById("langname").textContent=langName(lang);
+  if(!document.getElementById("s-file").files.length)document.getElementById("s-fname").textContent=t("fileHint");
+  visAyah();visHadith();visFatiha();visLaert();renderBib();visOrd();
+  if(hist.length===0)hilsen.textContent=hilsenTxt();visAddr();visTal();
+  noteAI();renderLangs()}
+
+const sheet=document.getElementById("sheet");
+document.getElementById("open-set").onclick=()=>{sheet.hidden=false;document.getElementById("apikey").value=egenNoegle();document.getElementById("close-set").focus()};
+const luk=()=>{sheet.hidden=true;document.getElementById("open-set").focus()};
+document.getElementById("close-set").onclick=luk;sheet.addEventListener("click",e=>{if(e.target===sheet)luk()});
+addEventListener("keydown",e=>{if(e.key==="Escape"&&!sheet.hidden)luk()});
+document.getElementById("savekey").onclick=()=>{const k=document.getElementById("apikey").value.trim();if(k)ls.set("nur_key",k);else ls.del("nur_key");
+  document.getElementById("k-status").textContent=k?t("keySaved"):t("keyRemoved");noteAI()};
+document.getElementById("deldata").onclick=()=>{["nur_laert","nur_kilder","nur_key","nur_trans","nur_lang"].forEach(ls.del);
+  laert=[];egne=[];for(const k in extra)delete extra[k];if(lang!=="da")lang="en";document.getElementById("apikey").value="";
+  applyLang();document.getElementById("d-status").textContent=t("dataDeleted")};
+function kildeTekster(){const src={};for(const k in T.en)src["t."+k]=T.en[k];
+  AYAT.forEach((a,i)=>src["d.ayah"+i]=a[1].en);HADITH.forEach((h,i)=>src["d.hadith"+i]=h[0].en);FAT.forEach((f,i)=>src["d.fatiha"+i]=f[2].en);
+  ORD.forEach((o,i)=>src["d.ord"+i]=o[2].en);BASE.forEach((b,i)=>{src["d.b"+i+"t"]=b.titel.en;src["d.b"+i+"x"]=b.tekst.en;src["d.b"+i+"m"]=b.tema.en});return src}
+document.getElementById("translate").onclick=async()=>{await klar;const navn=document.getElementById("otherlang").value.trim();const st=document.getElementById("t-status");
+  if(!navn||!harAI())return;const btn=document.getElementById("translate");btn.disabled=true;
+  const src=kildeTekster(),keys=Object.keys(src),chunks=[];for(let i=0;i<keys.length;i+=28)chunks.push(keys.slice(i,i+28));
+  const tit=t("translateBtn")+" · "+navn;ld.show(tit,t("translating",{a:0,b:chunks.length}),2);
+  try{st.className="status";st.textContent="";
+    const meta=await ai(`Return ONLY JSON {"code":"ISO 639-1 code","name":"the language's name in that language itself","dir":"ltr" or "rtl"} for the language the user called: ${navn}`,{json:true,maxTokens:200});
+    const code=String(meta.code||navn).toLowerCase().replace(/[^a-z-]/g,"").slice(0,8)||"x";const out={name:meta.name||navn,dir:meta.dir==="rtl"?"rtl":"ltr",t:{},d:{}};
+    for(let c=0;c<chunks.length;c++){ld.show(tit,t("translating",{a:c+1,b:chunks.length}),Math.round((c+.5)/chunks.length*100));
+      const part={};chunks[c].forEach(k=>part[k]=src[k]);
+      const r=await ai(`Translate the JSON values below from English into ${out.name}. This is an app for new Muslims, so use respectful, natural, simple language and the usual Islamic terms in that language. Keep every key unchanged. Keep all HTML tags, attributes and {placeholders} exactly. Arrays stay arrays. Return ONLY the JSON object.\n\n${JSON.stringify(part)}`,{json:true,maxTokens:6000});
+      for(const k in r){if(k.startsWith("t."))out.t[k.slice(2)]=r[k];else if(k.startsWith("d."))out.d[k.slice(2)]=r[k]}}
+    extra[code]=out;ls.set("nur_trans",extra);lang=code;ls.set("nur_lang",lang);applyLang();st.className="status";st.textContent=t("translated")}
+  catch(e){st.className="status err";st.textContent=e&&e.code&&!["parse","http","network"].includes(e.code)?fejlTxt(e):t("transFail")}
+  ld.hide();btn.disabled=!harAI()};
+
+const klar=(async()=>{try{sampleFn=window.claude&&window.claude.use?await window.claude.use("sample"):null;
+  if(sampleFn){const l=sampleFn.limits?await sampleFn.limits():null;kanBilleder=!!(l&&l.images)}}catch(e){sampleFn=null}
+  document.getElementById("keybox").hidden=!!sampleFn;noteAI()})();
+(async()=>{const want=lang;if(FILLANG.has(want)){if(!(await hentSprog(want)))lang="en"}
+  else if(!(want==="da"||want==="en"||extra[want]))lang="en";applyLang();requestAnimationFrame(drawPattern)})();
+(()=>{const au=document.getElementById("song"),pl=document.getElementById("player"),ic=document.getElementById("pl-ic"),mm=null;
+  const play="M3 1.5v11l9-5.5z",pause="M3 1.5h3v11H3zM8 1.5h3v11H8z";
+  const brændt=()=>{pl.hidden=true};
+  if(ls.get("nur_song_done",false)){brændt();return}
+  fetch("song.mp3",{method:"HEAD"}).then(r=>{if(!r.ok)return;const w=document.getElementById("welcome");w.hidden=false;document.getElementById("w-go").focus()}).catch(()=>{});
+  document.getElementById("w-go").onclick=()=>{document.getElementById("welcome").hidden=true;pl.hidden=false;ls.set("nur_song_done",true);au.play().catch(()=>{})};
+  document.getElementById("w-skip").onclick=()=>{document.getElementById("welcome").hidden=true;ls.set("nur_song_done",true);brændt()};
+  document.getElementById("pl-btn").onclick=()=>{if(au.paused){au.play().catch(()=>{})}else au.pause()};
+  au.onplay=()=>{ic.setAttribute("d",pause);document.getElementById("pl-btn").setAttribute("aria-label","Pause")};
+  au.onpause=()=>{ic.setAttribute("d",play);document.getElementById("pl-btn").setAttribute("aria-label","Play")};
+  au.onended=()=>{brændt();au.removeAttribute("src");au.load()};
+  au.onerror=()=>{pl.hidden=true}})();
+
+/* ================= INSTALLÉR SOM APP ================= */
+(()=>{let evt=null;const btn=document.getElementById("install");
+  const standalone=matchMedia("(display-mode: standalone)").matches||navigator.standalone;
+  if("serviceWorker" in navigator&&location.protocol==="https:"&&!location.hostname.endsWith("claude.ai")&&!location.hostname.includes("claudeusercontent")){
+    navigator.serviceWorker.register("sw.js").catch(()=>{})}
+  addEventListener("beforeinstallprompt",e=>{e.preventDefault();evt=e;if(!standalone)btn.hidden=false});
+  btn.onclick=async()=>{if(!evt)return;evt.prompt();try{await evt.userChoice}catch(e){}evt=null;btn.hidden=true};
+  addEventListener("appinstalled",()=>{btn.hidden=true});
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent);if(ios&&!standalone)document.getElementById("ios-hint").hidden=false})();
+</script>
+
+</body>
+</html>

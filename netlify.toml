@@ -1,0 +1,43 @@
+[build]
+  publish = "."
+
+[functions]
+  directory = "netlify/functions"
+
+# Hele appen
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=31536000"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+# Fællesskabet: login, chat og opkald – strammere sikkerhed og adgang til mikrofon
+[[headers]]
+  for = "/faellesskab/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    Permissions-Policy = "camera=(), microphone=(self), geolocation=()"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; media-src 'self' blob:; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+
+[[headers]]
+  for = "/faellesskab/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/faellesskab/config.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+# Kildekoden til Claude-versionen skal ikke ligge på hjemmesiden
+[[redirects]]
+  from = "/claude-version/*"
+  to = "/404.html"
+  status = 404
+  force = true
