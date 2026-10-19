@@ -48,6 +48,13 @@
   status = 404
   force = true
 
+# Opskriften til at bygge iPhone-appen i skyen hører ikke til hjemmesiden
+[[redirects]]
+  from = "/codemagic.yaml"
+  to = "/404.html"
+  status = 404
+  force = true
+
 # AI-funktionen køres hos Supabase, ikke på hjemmesiden
 [[redirects]]
   from = "/supabase/*"
