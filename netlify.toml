@@ -48,16 +48,9 @@
   status = 404
   force = true
 
-# Startknappen og tjeklisten er til din computer, ikke til hjemmesiden
+# Opskriften til at bygge iPhone-appen i skyen hører ikke til hjemmesiden
 [[redirects]]
-  from = "/START-HER.*"
-  to = "/404.html"
-  status = 404
-  force = true
-
-# Expo-appen (kildekoden) hører ikke til hjemmesiden
-[[redirects]]
-  from = "/expo-app/*"
+  from = "/codemagic.yaml"
   to = "/404.html"
   status = 404
   force = true

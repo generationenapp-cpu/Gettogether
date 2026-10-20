@@ -929,11 +929,6 @@ function applyLang(){
 const sheet=document.getElementById("sheet");
 document.getElementById("open-set").onclick=()=>{sheet.hidden=false;document.getElementById("apikey").value=egenNoegle();document.getElementById("close-set").focus()};
 const luk=()=>{sheet.hidden=true;document.getElementById("open-set").focus()};
-/* Tilbage-knappen i appen (Android): luk det øverste – eller gå til Hjem */
-window.GT_BACK=()=>{if(!document.getElementById("flow").hidden){lukFlow();return true}
-  if(!sheet.hidden){luk();return true}
-  const cur=views.find(x=>!document.getElementById("v-"+x).hidden);
-  if(cur&&cur!=="hjem"){go(cur==="basis"?"laer":"hjem");return true}return false};
 document.getElementById("close-set").onclick=luk;sheet.addEventListener("click",e=>{if(e.target===sheet)luk()});
 addEventListener("keydown",e=>{if(e.key==="Escape"&&!sheet.hidden)luk()});
 document.getElementById("savekey").onclick=()=>{const k=document.getElementById("apikey").value.trim();if(k)ls.set("nur_key",k);else ls.del("nur_key");
