@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+dist/
+web-build/
+# laves af scripts/byg-web.mjs
+web/sider.js
+# nøgler, der ALDRIG må på GitHub
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+*-firebase-adminsdk-*.json
+service-account*.json

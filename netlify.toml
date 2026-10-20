@@ -48,9 +48,9 @@
   status = 404
   force = true
 
-# Opskriften til at bygge iPhone-appen i skyen hører ikke til hjemmesiden
+# Expo-appen (kildekoden) hører ikke til hjemmesiden
 [[redirects]]
-  from = "/codemagic.yaml"
+  from = "/expo-app/*"
   to = "/404.html"
   status = 404
   force = true

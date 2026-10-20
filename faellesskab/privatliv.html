@@ -22,7 +22,7 @@
 <div class="doc">
 <p><a href="./">← Tilbage til fællesskabet</a> · <a href="../">Guiden</a></p>
 <h1>Privatlivspolitik</h1>
-<p class="muted">Senest opdateret: 20. oktober 2026 (login med kaldenavn og kode, AI-tjek af profiler og moderatorer)</p>
+<p class="muted">Senest opdateret: 20. oktober 2026 (app med push-beskeder, login med kaldenavn og kode, AI-tjek af profiler og moderatorer)</p>
 
 <h2>1. Hvem er dataansvarlig?</h2>
 <p><b data-cfg="CONTROLLER_NAME"></b><br><span data-cfg="CONTROLLER_ID"></span><br>
@@ -42,6 +42,7 @@ E-mail: <a data-cfg-mail="CONTACT_EMAIL"></a></p>
 <tr><td>Venskaber og venneanmodninger</td><td>At du kan finde, skrive og ringe til dine venner</td><td>Art. 6(1)(b) og art. 9(2)(a)</td></tr>
 <tr><td>Private grupper, medlemmer og gruppebeskeder</td><td>At levere gruppechat mellem venner</td><td>Art. 6(1)(b) og art. 9(2)(a)</td></tr>
 <tr><td>Opkaldslog (hvem der ringede til hvem, hvornår og hvor længe)</td><td>At kunne ringe, vise ubesvarede opkald og forhindre misbrug. <b>Selve samtalen optages eller gemmes aldrig.</b></td><td>Art. 6(1)(b) og 6(1)(f)</td></tr>
+<tr><td>Telefonens push-adresse (kun i appen, hvis du siger ja til beskeder)</td><td>At give dig besked om nye beskeder, opkald og venneanmodninger. Beskedens indhold sendes aldrig med – kun hvem den er fra. Adressen slettes, når du logger ud eller sletter din konto.</td><td>Art. 6(1)(b)</td></tr>
 <tr><td>Blokeringer og rapporter</td><td>Tryghed og moderation</td><td>Art. 6(1)(f) – legitim interesse i et sikkert fællesskab</td></tr>
 <tr><td>AI-tjek af din profil (kaldenavn, by, rejse, tekst om dig, interesser) og resultatet: godkendt, til gennemsyn eller stoppet</td><td>At stoppe tydeligt falske eller skræmmende profiler (fx spam, svindel, trusler), før de bliver synlige. AI'en har ikke det sidste ord: du kan altid bede en moderator om at se på din profil, og en moderator kan godkende den.</td><td>Art. 6(1)(f) og art. 9(2)(a)</td></tr>
 <tr><td>Moderatorhandlinger (godkendt, stoppet, pause, udelukket) med begrundelse, og en log over hvem der gjorde hvad</td><td>Tryghed, og at administratoren kan holde øje med, at moderatorerne bruger deres rettigheder fornuftigt</td><td>Art. 6(1)(f)</td></tr>
@@ -62,7 +63,7 @@ E-mail: <a data-cfg-mail="CONTACT_EMAIL"></a></p>
 </ul>
 
 <h2>5. Databehandlere og opbevaring</h2>
-<p>Data opbevares hos <b>Supabase</b> (database og login) på servere i EU, og appen hostes hos <b>Netlify</b>. Når du opretter eller ændrer din profil, sendes profilteksten (ikke dine beskeder) til <b>Anthropic</b> (Claude), som vurderer, om den er tydeligt falsk eller skræmmende. Anthropic kan behandle oplysningerne uden for EU (USA) efter deres databehandleraftale med EU's standardkontraktbestemmelser, og efter deres kommercielle vilkår bruges oplysningerne ikke til at træne deres modeller. Alle tre er databehandlere og må kun behandle data efter vores instruks. Skrifttyperne hentes fra <b>Google Fonts</b>, som modtager din IP-adresse, når siden indlæses.</p>
+<p>Data opbevares hos <b>Supabase</b> (database og login) på servere i EU, og appen hostes hos <b>Netlify</b>. Når du opretter eller ændrer din profil, sendes profilteksten (ikke dine beskeder) til <b>Anthropic</b> (Claude), som vurderer, om den er tydeligt falsk eller skræmmende. Anthropic kan behandle oplysningerne uden for EU (USA) efter deres databehandleraftale med EU's standardkontraktbestemmelser, og efter deres kommercielle vilkår bruges oplysningerne ikke til at træne deres modeller. Bruger du appen og siger ja til beskeder, går push-beskeder via <b>Expo</b> (650 Industries) og videre til <b>Apple</b> eller <b>Google</b>, som leverer dem til din telefon. De ser kun hvem beskeden er fra, aldrig indholdet. Alle er databehandlere og må kun behandle data efter vores instruks. Skrifttyperne hentes fra <b>Google Fonts</b>, som modtager din IP-adresse, når siden indlæses.</p>
 
 <h2>6. Hvor længe gemmer vi data?</h2>
 <p>Så længe du har en konto. Når du sletter din konto, slettes din login, profil, alle dine beskeder (også private), blokeringer og rapporter, du har lavet, med det samme. Rapporter om andre brugeres indhold og moderatorloggen kan gemmes i op til 12 måneder af hensyn til tryghed og gentagne overtrædelser.</p>

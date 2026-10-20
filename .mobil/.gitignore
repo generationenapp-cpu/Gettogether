@@ -1,6 +1,0 @@
-node_modules/
-www/
-# Din upload-nøgle til Google Play må ALDRIG komme på GitHub
-*.jks
-*.keystore
-keystore.properties

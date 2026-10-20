@@ -91,7 +91,7 @@ Sikkerheden ligger i databasen, ikke i adressen: en almindelig bruger, der finde
 - Guidens offline-lager rører aldrig fællesskabet, så chat og opkald altid er friske.
 
 ## Som rigtig app (Google Play og App Store)
-Mappen `.mobil` laver hjemmesiden om til en rigtig app med Capacitor. Android bygger du selv i Android Studio. iPhone bygges i skyen hos Codemagic, så du ikke skal have en Mac. Se `.mobil/README.md`.
+Mappen `expo-app` er en rigtig app lavet med **Expo**. Guiden og fællesskabet er bygget ind i den, og den har push-beskeder ved nye beskeder, opkald og venneanmodninger. Expo (EAS) bygger både Android- og iPhone-appen i skyen, så du ikke skal have en Mac, og rettelser kan sendes ud uden at vente på butikkerne. Se `expo-app/README.md`.
 
 ## Claude-versionen
 Den samme app kører også direkte i Claude (uden servere) – se `claude-version/README.md`. Dér logger man ind med sin Claude-konto, Claude tjekker profilerne, og ejeren af siden er administrator.
@@ -105,4 +105,5 @@ Den samme app kører også direkte i Claude (uden servere) – se `claude-versio
 - `supabase/functions/check-profile/` – AI-tjekket (køres hos Supabase, lægges ikke på hjemmesiden)
 - `netlify.toml` – samlet opsætning (strammere sikkerhed og mikrofon kun i fællesskabet)
 - `claude-version/` – byggescript til Claude-versionen (lægges ikke på hjemmesiden)
-- `.mobil/` og `codemagic.yaml` – app til Google Play og App Store (lægges ikke på hjemmesiden)
+- `expo-app/` – appen til Google Play og App Store (lægges ikke på hjemmesiden)
+- `supabase/functions/send-push/` – push-beskeder til appen (køres hos Supabase)

@@ -24,6 +24,8 @@ const PRIVACY_URL = CONFIG.PRIVACY_URL === undefined ? 'privatliv.html' : CONFIG
 const ROOT = window.GT_ROOT || document;     // dokumentet – eller en shadow root, når appen er indlejret
 const PANEL = !!window.GT_PANEL;             // moderatorpanelet (panel/index.html)
 const LOGIN_READY = EMBEDDED || (!!CONFIG.LOGIN_DOMAIN && !/DIT-DOM/i.test(CONFIG.LOGIN_DOMAIN));
+const NATIVE = !!window.ReactNativeWebView && !EMBEDDED;   // kører inde i GetTogether-appen (Expo)
+const toNative = msg => { if (NATIVE) try { window.ReactNativeWebView.postMessage(JSON.stringify(msg)); } catch(e){} };
 
 /* ---------- login med kaldenavn + kode ---------- */
 const normNick = s => String(s || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
@@ -91,7 +93,7 @@ const api = {
       .or(`and(sender.eq.${m},recipient.eq.${other}),and(sender.eq.${other},recipient.eq.${m})`)
       .order('created_at', { ascending:false }).limit(200)).reverse();
   },
-  async sendDM(to, body){ ok(await sb.from('direct_messages').insert({ recipient: to, body })); },
+  async sendDM(to, body){ const r = ok(await sb.from('direct_messages').insert({ recipient: to, body }).select('id').single()); api.notify('dm', r && r.id); },
   async threads(){
     const m = me();
     const data = ok(await sb.from('direct_messages').select('*').or(`sender.eq.${m},recipient.eq.${m}`).order('created_at', { ascending:false }).limit(500));
@@ -102,7 +104,7 @@ const api = {
 
   // venner
   async friendships(){ return ok(await sb.from('friendships').select('*')); },
-  async requestFriend(uid){ ok(await sb.from('friendships').insert({ addressee: uid })); },
+  async requestFriend(uid){ const r = ok(await sb.from('friendships').insert({ addressee: uid }).select('id').single()); api.notify('friend', r && r.id); },
   async acceptFriend(fid){ ok(await sb.from('friendships').update({ status:'accepted' }).eq('id', fid)); },
   async removeFriendship(fid){ ok(await sb.from('friendships').delete().eq('id', fid)); },
 
@@ -127,11 +129,16 @@ const api = {
     if (before) q = q.lt('created_at', before);
     return ok(await q).reverse();
   },
-  async sendGroup(gid, body){ ok(await sb.from('group_messages').insert({ group_id: gid, body })); },
+  async sendGroup(gid, body){ const r = ok(await sb.from('group_messages').insert({ group_id: gid, body }).select('id').single()); api.notify('group', r && r.id); },
   async delGroupMessage(id){ ok(await sb.from('group_messages').delete().eq('id', id)); },
 
   // opkald
-  async startCall(uid){ return ok(await sb.from('calls').insert({ callee: uid }).select().single()); },
+  async startCall(uid){ const r = ok(await sb.from('calls').insert({ callee: uid }).select().single()); api.notify('call', r && r.id); return r; },
+  async ringingCalls(){ const since = new Date(Date.now() - 60000).toISOString(); return ok(await sb.from('calls').select('*').eq('callee', me()).eq('status', 'ringing').gt('created_at', since)); },
+  // Push-besked til modtagerens telefon. Serveren tjekker selv, at du har sendt det, og sender aldrig beskedens indhold.
+  notify(kind, id){ if (EMBEDDED || CONFIG.PUSH === false || id == null) return; try { sb.functions.invoke('send-push', { body:{ kind, id } }).catch(() => {}); } catch(e){} },
+  registerPush(token, platform){ return api.rpc('register_push_token', { p_token: token, p_platform: platform }); },
+  unregisterPush(token){ return api.rpc('unregister_push_token', { p_token: token }); },
   async setCallStatus(id, status){ ok(await sb.from('calls').update({ status }).eq('id', id)); },
   async callChannel(id){
     try { const { data } = await sb.auth.getSession(); if (data.session) sb.realtime.setAuth(data.session.access_token); } catch(e){}
@@ -378,6 +385,47 @@ async function afterProfile(){
     loadReports(); loadPanel();
     state.subs.reports = api.subReports(() => { loadReports(); loadPanel(); toast('Ny sag til moderation'); });
   }
+  if (CALLS && !EMBEDDED) checkRinging();     // ringer nogen lige nu? (fx når man åbner appen fra en push-besked)
+  toNative({ type:'signed-in' });
+  if (pendingNav){ const n = pendingNav; pendingNav = null; nativeNav(n.kind, n.id); }
+}
+
+/* ---------- appen (Expo): push, tilbage-knap, åbn fra push ---------- */
+let pendingNav = null, pushToken = null;
+async function checkRinging(){
+  try { const rows = await api.ringingCalls(); for (const row of rows) await Call.onRow({ eventType:'INSERT', new:row }); } catch(e){}
+}
+function nativeNav(kind, id){
+  if (!state.profile || !state.subs.live){ pendingNav = { kind, id }; return; }
+  closeSheet();
+  if (kind === 'dm' && id) openDM(id);
+  else if (kind === 'group' && id) openGroup(id);
+  else if (kind === 'friend'){ leaveChat(); state.tab = 'friends'; state.friendsTab = 'requests'; render(); }
+  else if (kind === 'call') checkRinging();
+}
+function nativeBack(){
+  const dlg = $('#dialog.open');
+  if (dlg){ (dlg.querySelector('[data-dlg=no]') || dlg.querySelector('[data-dlg=yes]'))?.click(); return true; }
+  if (Call.c) return true;
+  if (state.sheet){ closeSheet(); return true; }
+  if (inChat()){ leaveChat(); render(); return true; }
+  if (state.profile && !PANEL && state.tab !== 'rooms'){ state.tab = 'rooms'; render(); return true; }
+  return false;
+}
+async function forgetPush(){
+  if (pushToken){ try { await api.unregisterPush(pushToken); } catch(e){} pushToken = null; }
+  toNative({ type:'signed-out' });
+}
+if (NATIVE){
+  window.GT_PUSH_TOKEN = async (token, platform) => {
+    if (!state.user || !token) return;
+    pushToken = token;
+    try { await api.registerPush(token, platform); } catch(e){}
+  };
+  window.GT_NAV = nativeNav;
+  window.GT_BACK = nativeBack;
+  window.GT_RESUME = () => { if (state.profile && state.subs.live){ checkRinging(); loadThreads(); } };
+  window.GT_DOWNLOAD = (name, text) => toNative({ type:'download', name, data:text });
 }
 function unsubRoom(){ if (state.subs.room){ state.subs.room(); state.subs.room = null; } }
 function unsubAll(){ Object.keys(state.subs).forEach(k => { if (state.subs[k]){ state.subs[k](); state.subs[k] = null; } }); }
@@ -1242,6 +1290,7 @@ function ask({ title, text = '', ok = 'OK', danger = false, input = null, match 
 }
 
 async function copyText(t){
+  if (NATIVE){ toNative({ type:'copy', text:t }); toast('Koden er kopieret.'); return; }
   try { await navigator.clipboard.writeText(t); toast('Koden er kopieret.'); }
   catch(e){ toast('Markér koden og kopiér den selv.'); }
 }
@@ -1585,12 +1634,13 @@ ROOT.addEventListener('click', async e => {
         b.disabled = false;
         break;
       }
-      case 'logout': if (Call.c) Call.hangup(); await api.signOut(); await setUser(null); break;
+      case 'logout': if (Call.c) Call.hangup(); await forgetPush(); await api.signOut(); await setUser(null); break;
       case 'deleteaccount': {
         const ans = await ask({ title:'Slet din konto?', text:'Din profil, dine venskaber, grupper du ejer og alle dine beskeder slettes permanent. Skriv SLET for at bekræfte.', match:'SLET', ok:'Slet min konto', danger:true });
         if (!ans) return;
         await api.deleteAccount();
         try { localStorage.removeItem(lrKey()); } catch(_){}
+        pushToken = null; toNative({ type:'signed-out' });
         await api.signOut(); await setUser(null);
         toast('Din konto er slettet.');
         break;
@@ -1812,6 +1862,6 @@ if (CONFIGURED){
   api.onAuth(u => setUser(u));
   api.session().then(u => setUser(u)).catch(() => setUser(null));
 }
-if ('serviceWorker' in navigator && location.protocol === 'https:' && !PREVIEW && !EMBEDDED && !PANEL){
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !PREVIEW && !EMBEDDED && !PANEL && !NATIVE){
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
