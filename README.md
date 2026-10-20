@@ -1,5 +1,7 @@
 # GetTogether by Malik – samlet app
 
+> **Første gang?** Åbn `START-HER.md` og dobbeltklik på `START-HER.cmd`. Så tager du trinene i den rigtige rækkefølge.
+
 Én app med tre dele:
 
 | Del | Hvor | Login | Server |
