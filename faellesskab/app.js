@@ -1812,6 +1812,17 @@ if (CONFIGURED){
   api.onAuth(u => setUser(u));
   api.session().then(u => setUser(u)).catch(() => setUser(null));
 }
+// Tilbage-knappen i Android-appen: luk det øverste (dialog, kort, chat, fane). false = gå ud til guiden.
+window.GT_BACK = () => {
+  const dlg = $('#dialog.open');
+  if (dlg){ (dlg.querySelector('[data-dlg=no]') || dlg.querySelector('[data-dlg=yes]'))?.click(); return true; }
+  if (Call.c) return true;
+  if (state.sheet){ closeSheet(); return true; }
+  if (inChat()){ leaveChat(); render(); return true; }
+  if (state.profile && !PANEL && state.tab !== 'rooms'){ state.tab = 'rooms'; render(); return true; }
+  return false;
+};
+
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !PREVIEW && !EMBEDDED && !PANEL){
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }

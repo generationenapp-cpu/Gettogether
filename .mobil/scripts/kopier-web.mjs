@@ -3,6 +3,7 @@
 //  - ingen service worker og ingen "Installér som app"-knap
 //  - links til mapper peger på index.html (appens egen server kender ikke mapper)
 //  - tælleren og privatlivspolitikken hentes fra hjemmesiden
+//  - tilbage-knap og "Download mine data" via appen (scripts/bro.js)
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,6 +49,10 @@ ret('index.html', [
 ret('faellesskab/app.js', [
   ["navigator.serviceWorker.register('sw.js').catch(() => {});", '/* ingen service worker i appen */', 1],
 ]);
+
+const BRO = `<script>\n${readFileSync(join(MOBIL, 'scripts/bro.js'), 'utf8')}</script>\n</body>`;
+ret('index.html', [['</body>', BRO, 1]]);
+ret('faellesskab/index.html', [['</body>', BRO, 1]]);
 
 const cfg = join(WWW, 'faellesskab/config.js');
 const cfgTekst = readFileSync(cfg, 'utf8');

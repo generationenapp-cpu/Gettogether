@@ -1,5 +1,7 @@
 # GetTogether by Malik – samlet app
 
+> **Første gang?** Åbn `START-HER.md` og dobbeltklik på `START-HER.cmd`. Så tager du trinene i den rigtige rækkefølge.
+
 Én app med tre dele:
 
 | Del | Hvor | Login | Server |
@@ -26,7 +28,8 @@ Guiden virker præcis som før – også offline og uden login. Menupunktet **F�
 
 ## Trin 2 – Login med kaldenavn og kode (2 min)
 1. Supabase → **Authentication → Sign In / Providers → Email**: slå **Confirm email** **fra** og tryk **Save**. (Ellers kan ingen oprette sig, for der sendes ingen mails.)
-2. I `faellesskab/config.js`: sæt `LOGIN_DOMAIN` til et domæne, du ejer, og som kan modtage mail (fx `ai-helt.dk`). Det bruges kun internt som login-navn bag kulisserne – der sendes aldrig mails dertil. Supabase afviser opdigtede domæner.
+2. I `faellesskab/config.js`: sæt `LOGIN_DOMAIN` til et domæne, du ejer, og som kan modtage mail. Det bruges kun internt som login-navn bag kulisserne – der sendes aldrig mails dertil. Supabase afviser opdigtede domæner.
+   **Anonymt:** `config.js` kan ses af alle på hjemmesiden. Brug derfor **ikke** et domæne, der kan føres tilbage til dig eller din virksomhed – køb et separat domæne med mail (fx et `.dk`-domæne hos One.com).
 
 > Vælg `LOGIN_DOMAIN` én gang og lad den være. Ændrer du den senere, kan de gamle brugere ikke logge ind.
 
@@ -90,8 +93,8 @@ Sikkerheden ligger i databasen, ikke i adressen: en almindelig bruger, der finde
 - Menupunktet og forsidekortet "Fællesskab" er oversat til alle guidens 33 sprog. Selve fællesskabet er på dansk.
 - Guidens offline-lager rører aldrig fællesskabet, så chat og opkald altid er friske.
 
-## Som rigtig app (Google Play og App Store)
-Mappen `.mobil` laver hjemmesiden om til en rigtig app med Capacitor. Android bygger du selv i Android Studio. iPhone bygges i skyen hos Codemagic, så du ikke skal have en Mac. Se `.mobil/README.md`.
+## Som Android-app (Google Play)
+Mappen `.mobil` laver hjemmesiden om til en rigtig Android-app med Capacitor, som du bygger i Android Studio og udgiver anonymt på Google Play. iPhone-brugere bruger hjemmesiden (Del → Føj til hjemmeskærm). Se `.mobil/README.md`.
 
 ## Claude-versionen
 Den samme app kører også direkte i Claude (uden servere) – se `claude-version/README.md`. Dér logger man ind med sin Claude-konto, Claude tjekker profilerne, og ejeren af siden er administrator.
@@ -105,4 +108,6 @@ Den samme app kører også direkte i Claude (uden servere) – se `claude-versio
 - `supabase/functions/check-profile/` – AI-tjekket (køres hos Supabase, lægges ikke på hjemmesiden)
 - `netlify.toml` – samlet opsætning (strammere sikkerhed og mikrofon kun i fællesskabet)
 - `claude-version/` – byggescript til Claude-versionen (lægges ikke på hjemmesiden)
-- `.mobil/` og `codemagic.yaml` – app til Google Play og App Store (lægges ikke på hjemmesiden)
+- `.mobil/` – Android-appen til Google Play (lægges ikke på hjemmesiden)
+- `404.html` – siden, man ser ved en forkert adresse
+- `START-HER.md` og `START-HER.cmd` – tjeklisten og startknappen til din computer

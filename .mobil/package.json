@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "GetTogether by Malik som rigtig app til Google Play og App Store (Capacitor).",
+  "description": "GetTogether by Malik som Android-app til Google Play (Capacitor).",
   "gettogether": {
     "site": "https://gettogether-by-malik.netlify.app",
     "build": 1
@@ -11,14 +11,16 @@
   "scripts": {
     "web": "node scripts/kopier-web.mjs",
     "android:opret": "npm run web && cap add android && capacitor-assets generate --android --iconBackgroundColor #0B1220 --iconBackgroundColorDark #0B1220 --splashBackgroundColor #0B1220 --splashBackgroundColorDark #0B1220 && node scripts/indstil.mjs",
-    "ios:opret": "npm run web && cap add ios && capacitor-assets generate --ios --iconBackgroundColor #0B1220 --iconBackgroundColorDark #0B1220 --splashBackgroundColor #0B1220 --splashBackgroundColorDark #0B1220 && node scripts/indstil.mjs",
     "klar": "npm run web && cap sync && node scripts/indstil.mjs",
     "android": "npm run klar && cap open android"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.0.0",
     "@capacitor/core": "^8.5.0",
-    "@capacitor/ios": "^8.5.0"
+    "@capacitor/filesystem": "^8.0.0",
+    "@capacitor/keyboard": "^8.0.0",
+    "@capacitor/share": "^8.0.0"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
