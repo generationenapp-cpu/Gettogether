@@ -50,7 +50,13 @@
 
 # Startknappen og tjeklisten er til din computer, ikke til hjemmesiden
 [[redirects]]
-  from = "/START-HER.*"
+  from = "/START-HER.cmd"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/START-HER.md"
   to = "/404.html"
   status = 404
   force = true
