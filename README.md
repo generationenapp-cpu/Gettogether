@@ -1,4 +1,4 @@
-# GetTogether by Malik – samlet app
+# GetTogether samlet af Malik
 
 > **Første gang?** Åbn `START-HER.md` og dobbeltklik på `START-HER.cmd`. Så tager du trinene i den rigtige rækkefølge.
 

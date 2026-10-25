@@ -1,4 +1,4 @@
-"""Bygger Claude-versionen af GetTogether by Malik (én artifact-side + sprogfiler + sang).
+"""Bygger Claude-versionen af GetTogether samlet af Malik (én artifact-side + sprogfiler + sang).
 
 Guiden (Nur) er hovedsiden. Fællesskabet kører i en shadow root ovenpå,
 med Claude-sidens egen database i stedet for Supabase.
@@ -89,7 +89,7 @@ boot = """
 """ % (json.dumps("data:image/png;base64," + base64.b64encode(open(f"{SRC}/icon-192.png","rb").read()).decode()), json.dumps(ABOUT, ensure_ascii=False))
 
 page = (
-    '<title>GetTogether by Malik</title>\n'
+    '<title>GetTogether samlet af Malik</title>\n'
     '<meta name="claude:viewport-fit-sides" content="cover">\n'
     '<link rel="preconnect" href="https://fonts.googleapis.com">\n'
     + '\n'.join(fonts) + '\n'

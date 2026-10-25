@@ -2,13 +2,13 @@
 chcp 65001 >nul
 setlocal EnableExtensions
 cd /d "%~dp0"
-title GetTogether by Malik
+title GetTogether samlet af Malik
 
 :menu
 cls
 echo.
-echo   GetTogether by Malik
-echo   ====================
+echo   GetTogether samlet af Malik
+echo   ===========================
 echo.
 echo   Hjemmesiden (se START-HER.md for rækkefølgen):
 echo     1  Tjek at alt er klar

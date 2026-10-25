@@ -418,7 +418,7 @@ function render(){
 }
 function headerHTML(){
   const chat = inChat();
-  let title = `<span class="brand"><img src="${LOGO}" alt="">${esc(CONFIG.APP_NAME)}<span class="by">by Malik</span></span>`, back = '', right = '';
+  let title = `<span class="brand"><img src="${LOGO}" alt="">${esc(CONFIG.APP_NAME)}<span class="by">samlet af Malik</span></span>`, back = '', right = '';
   if (state.roomId){ const r = state.rooms.find(x => x.id === state.roomId); title = `<span>${esc(r?.emoji || '')}</span><span>${esc(r?.name || '')}</span>`; }
   if (state.dmWith){
     const p = state.people.get(state.dmWith) || { id:state.dmWith };

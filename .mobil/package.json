@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "GetTogether by Malik som Android-app til Google Play (Capacitor).",
+  "description": "GetTogether samlet af Malik som Android-app til Google Play (Capacitor).",
   "gettogether": {
     "site": "https://gettogether-by-malik.netlify.app",
     "build": 1

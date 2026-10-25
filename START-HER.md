@@ -1,4 +1,4 @@
-# Start her – GetTogether by Malik
+# Start her – GetTogether samlet af Malik
 
 Gør det i denne rækkefølge, så går intet galt. Hvor der står **START-HER**, dobbeltklikker du på `START-HER.cmd` i denne mappe og trykker på tallet.
 
@@ -53,7 +53,6 @@ Står der et **X**, så ret det først. Punkt 2 lægger hjemmesiden op på Netli
 ---
 
 ### Inden du åbner for alle
-- **"by Malik"** står i appen, i titlen og i Netlify-adressen. Malik er dit mellemnavn. Vil du være helt anonym, så skift det (fx til "by M") – sig til, så retter jeg det alle steder.
 - **Privatlivspolitikken:** Fordi appen behandler religiøs overbevisning, kræver GDPR, at der står, **hvem** der er dataansvarlig, og hvordan man kontakter dem. Helt anonymt er det ikke lovligt. Overvej at lade en forening eller et selskab stå som dataansvarlig, og få evt. en jurist til at kigge på det.
 - **Supabase gratis:** projektet sættes på pause efter 7 dage uden aktivitet. Du får en mail en uge før. Åbn projektet i Supabase for at starte det igen.
 
