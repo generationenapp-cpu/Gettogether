@@ -10,6 +10,7 @@
 //
 //  Hemmeligheder (Supabase → Edge Functions → Secrets):
 //    ANTHROPIC_API_KEY   din nøgle fra platform.claude.com
+//                        (eller gemt i private.secrets – se schema.sql v7)
 //    NUR_MODEL           valgfri, standard: claude-haiku-5-5
 //  Lægges op med "Verify JWT" slået FRA – guiden kræver ikke login.
 // =============================================================
@@ -42,8 +43,12 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
 
   const url = Deno.env.get('SUPABASE_URL')!;
-  const key = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
   const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
+  let key = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
+  if (!key) {
+    const { data } = await db.rpc('app_secret', { p_name: 'ANTHROPIC_API_KEY' });
+    key = typeof data === 'string' ? data : '';
+  }
 
   // GET: må guiden bruge Nur på fællesskabets nøgle?
   if (req.method === 'GET') {

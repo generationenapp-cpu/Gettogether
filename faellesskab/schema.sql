@@ -1070,6 +1070,30 @@ end $$;
 revoke all on function public.nur_ai_take(text) from public, anon, authenticated;
 grant execute on function public.nur_ai_take(text) to service_role;
 
+-- =====================================================================
+--  v7: LÅST PLADS TIL AI-NØGLEN
+--  Alternativ til Supabase → Edge Functions → Secrets: nøglen kan gemmes
+--  i private.secrets, som kun server-funktionerne (service_role) kan læse.
+--  Gem/skift den i SQL Editor:
+--    insert into private.secrets (name, value) values ('ANTHROPIC_API_KEY', 'sk-ant-…')
+--    on conflict (name) do update set value = excluded.value, updated_at = now();
+-- =====================================================================
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
+create table if not exists private.secrets (
+  name       text primary key,
+  value      text not null,
+  updated_at timestamptz not null default now()
+);
+revoke all on private.secrets from public, anon, authenticated;
+
+create or replace function public.app_secret(p_name text) returns text
+language sql stable security definer set search_path = private as $$
+  select value from private.secrets where name = p_name
+$$;
+revoke all on function public.app_secret(text) from public, anon, authenticated;
+grant execute on function public.app_secret(text) to service_role;
+
 -- ---------- Gør dig selv til admin (kør EFTER du har oprettet din profil i appen) ----------
 -- Skriv dit kaldenavn i stedet for DIT-KALDENAVN:
 -- update public.profiles set role = 'admin' where lower(nickname) = lower('DIT-KALDENAVN');

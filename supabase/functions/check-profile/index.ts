@@ -12,7 +12,8 @@
 //  tjekket kan ikke snydes fra appen.
 //
 //  Hemmeligheder (Supabase → Edge Functions → Secrets):
-//    ANTHROPIC_API_KEY   din nøgle fra console.anthropic.com
+//    ANTHROPIC_API_KEY   din nøgle fra platform.claude.com
+//                        (eller gemt i private.secrets – se schema.sql v7)
 //    ANTHROPIC_MODEL     valgfri, standard: claude-haiku-5-5
 // =============================================================
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
@@ -59,8 +60,7 @@ ${profile}
 </profile>`;
 }
 
-async function askClaude(text: string): Promise<{ verdict: string; reason: string }> {
-  const key = Deno.env.get('ANTHROPIC_API_KEY');
+async function askClaude(text: string, key: string): Promise<{ verdict: string; reason: string }> {
   if (!key) throw new Error('no_key');
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -100,7 +100,12 @@ Deno.serve(async (req) => {
 
     let status = 'review', reason: string | null = null;
     try {
-      const v = await askClaude(prompt(p));
+      let key = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
+      if (!key) {
+        const { data } = await admin.rpc('app_secret', { p_name: 'ANTHROPIC_API_KEY' });
+        key = typeof data === 'string' ? data : '';
+      }
+      const v = await askClaude(prompt(p), key);
       status = v.verdict === 'block' ? 'blocked' : v.verdict;
       reason = status === 'ok' ? null : (v.reason || 'Profilen skal lige ses af en moderator.');
     } catch (_e) {
