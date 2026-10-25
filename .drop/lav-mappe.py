@@ -75,7 +75,8 @@ def main():
     cfg_path.write_text(cfg, encoding='utf-8')
 
     (out / '_headers').write_text(HEADERS, encoding='utf-8')
-    (out / '_redirects').write_text(f'/api/count  https://{o.ref}.supabase.co/functions/v1/count  200!\n', encoding='utf-8')
+    (out / '_redirects').write_text(f'/api/count  https://{o.ref}.supabase.co/functions/v1/count  200!\n'
+                                    f'/api/nur  https://{o.ref}.supabase.co/functions/v1/nur  200!\n', encoding='utf-8')
 
     if o.zip:
         z = Path(o.zip); z.unlink(missing_ok=True)

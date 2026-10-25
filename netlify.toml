@@ -62,6 +62,13 @@
   status = 404
   force = true
 
+# Nur på fællesskabets AI-nøgle (Supabase-funktionen "nur")
+[[redirects]]
+  from = "/api/nur"
+  to = "https://obgvmfiincvhifkzkitp.supabase.co/functions/v1/nur"
+  status = 200
+  force = true
+
 # Vejledningerne og pakkefilen er til dig, ikke til hjemmesiden
 [[redirects]]
   from = "/README.md"

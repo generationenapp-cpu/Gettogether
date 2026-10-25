@@ -1023,6 +1023,53 @@ $$;
 revoke all on function public.nur_count(boolean) from public, anon, authenticated;
 grant execute on function public.nur_count(boolean) to service_role;
 
+-- =====================================================================
+--  v6: NUR PÅ FÆLLESSKABETS AI-NØGLE
+--  Supabase-funktionen "nur" bruger ANTHROPIC_API_KEY, så Nur virker for alle.
+--  Loft: pr. person (hash af IP-adressen – aldrig selve adressen) pr. time
+--  og samlet pr. dag. Kan ændres her i app_settings.
+-- =====================================================================
+alter table public.app_settings add column if not exists nur_ai_on boolean not null default true;
+alter table public.app_settings add column if not exists nur_ai_hour_limit int not null default 30;
+alter table public.app_settings add column if not exists nur_ai_day_limit int not null default 1500;
+
+create table if not exists public.nur_ai_usage (
+  who       text primary key,
+  win_start timestamptz not null default now(),
+  n         int not null default 0
+);
+alter table public.nur_ai_usage enable row level security;
+revoke all on public.nur_ai_usage from anon, authenticated;
+
+create or replace function public.nur_ai_take(p_who text) returns text
+language plpgsql volatile security definer set search_path = public as $$
+declare s record; u record; g record;
+begin
+  select nur_ai_on, nur_ai_hour_limit, nur_ai_day_limit into s from app_settings where id = 1;
+  if not coalesce(s.nur_ai_on, true) then return 'off'; end if;
+  insert into nur_ai_usage (who, win_start, n) values ('alle', date_trunc('day', now()), 0) on conflict (who) do nothing;
+  select * into g from nur_ai_usage where who = 'alle' for update;
+  if g.win_start < date_trunc('day', now()) then
+    update nur_ai_usage set win_start = date_trunc('day', now()), n = 0 where who = 'alle';
+    g.n := 0;
+  end if;
+  if g.n >= coalesce(s.nur_ai_day_limit, 1500) then return 'day'; end if;
+  if coalesce(p_who, '') <> '' then
+    insert into nur_ai_usage (who, win_start, n) values (p_who, now(), 0) on conflict (who) do nothing;
+    select * into u from nur_ai_usage where who = p_who for update;
+    if u.win_start < now() - interval '1 hour' then
+      update nur_ai_usage set win_start = now(), n = 0 where who = p_who;
+      u.n := 0;
+    end if;
+    if u.n >= coalesce(s.nur_ai_hour_limit, 30) then return 'hour'; end if;
+    update nur_ai_usage set n = n + 1 where who = p_who;
+  end if;
+  update nur_ai_usage set n = n + 1 where who = 'alle';
+  return 'ok';
+end $$;
+revoke all on function public.nur_ai_take(text) from public, anon, authenticated;
+grant execute on function public.nur_ai_take(text) to service_role;
+
 -- ---------- Gør dig selv til admin (kør EFTER du har oprettet din profil i appen) ----------
 -- Skriv dit kaldenavn i stedet for DIT-KALDENAVN:
 -- update public.profiles set role = 'admin' where lower(nickname) = lower('DIT-KALDENAVN');

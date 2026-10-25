@@ -43,6 +43,7 @@ function ret(fil, aendringer) {
 ret('index.html', [
   ['data-href="faellesskab/"', 'data-href="faellesskab/index.html"', 2],
   ['fetch("/api/count"', `fetch("${SITE}/api/count"`, 2],
+  ['fetch("/api/nur"', `fetch("${SITE}/api/nur"`, 2],
   ['navigator.serviceWorker.register("sw.js").catch(()=>{})', '0', 1],
   ['const standalone=matchMedia("(display-mode: standalone)").matches||navigator.standalone;', 'const standalone=true;', 1],
 ]);
