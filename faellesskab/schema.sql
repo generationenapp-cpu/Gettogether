@@ -1003,6 +1003,26 @@ do $$ declare f text; begin
   end loop;
 end $$;
 
+-- =====================================================================
+--  v5: TÆLLEREN I GUIDEN ("du er nr. X") – virker også uden Netlify-funktioner
+--  Hjemmesiden sender /api/count videre til Supabase-funktionen "count".
+--  Gemmer kun ét tal. Ingen IP-adresser eller personlige data.
+-- =====================================================================
+create table if not exists public.nur_counter (
+  id int primary key default 1 check (id = 1),
+  n  bigint not null default 0
+);
+insert into public.nur_counter (id) values (1) on conflict (id) do nothing;
+alter table public.nur_counter enable row level security;
+revoke all on public.nur_counter from anon, authenticated;
+
+create or replace function public.nur_count(p_bump boolean) returns bigint
+language sql volatile security definer set search_path = public as $$
+  update public.nur_counter set n = n + (case when p_bump then 1 else 0 end) where id = 1 returning n;
+$$;
+revoke all on function public.nur_count(boolean) from public, anon, authenticated;
+grant execute on function public.nur_count(boolean) to service_role;
+
 -- ---------- Gør dig selv til admin (kør EFTER du har oprettet din profil i appen) ----------
 -- Skriv dit kaldenavn i stedet for DIT-KALDENAVN:
 -- update public.profiles set role = 'admin' where lower(nickname) = lower('DIT-KALDENAVN');
