@@ -301,3 +301,14 @@ nav button.guide{color:var(--muted)}
 .facts{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:14px;font-size:14.5px}
 .facts div{display:flex;flex-direction:column;min-width:0}
 .facts .muted{font-size:12.5px}
+
+/* ---------- Invitationer og hjemmeskærm ---------- */
+.invited{background:var(--brass-soft);border-radius:14px;padding:10px 14px;margin:10px 0 2px;font-size:15px}
+.install{background:var(--brass-soft);border-radius:18px;padding:14px 16px;margin:14px 12px 0}
+.install.login{margin:18px 0 0}
+.install-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.install-head p{margin:2px 0 10px;font-size:14px}
+.install .link{flex-shrink:0;font-size:14px}
+.howto{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:15px}
+.howto .ico{display:inline-flex;vertical-align:-3px;color:var(--indigo)}
+.howto .ico svg{width:18px;height:18px}

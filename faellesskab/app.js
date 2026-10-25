@@ -24,6 +24,22 @@ const PRIVACY_URL = CONFIG.PRIVACY_URL === undefined ? 'privatliv.html' : CONFIG
 const ROOT = window.GT_ROOT || document;     // dokumentet – eller en shadow root, når appen er indlejret
 const PANEL = !!window.GT_PANEL;             // moderatorpanelet (panel/index.html)
 const LOGIN_READY = EMBEDDED || (!!CONFIG.LOGIN_DOMAIN && !/DIT-DOM/i.test(CONFIG.LOGIN_DOMAIN));
+const APPWRAP = !!window.Capacitor;          // Android-appen
+
+/* ---------- kun med invitation: koden fra linket gemmes, indtil profilen er oprettet ---------- */
+const INVITE_KEY = 'gt_invite';
+const INVITE_BASE = CONFIG.INVITE_BASE || new URL('./', location.href).href;
+const getInvite = () => { try { return localStorage.getItem(INVITE_KEY) || ''; } catch(e){ return ''; } };
+const setInvite = c => { try { if (c) localStorage.setItem(INVITE_KEY, c); else localStorage.removeItem(INVITE_KEY); } catch(e){} };
+const inviteLink = c => INVITE_BASE + '?invite=' + encodeURIComponent(c);
+const fmtInvite = c => String(c || '').replace(/^(.{4})(.{4})$/, '$1-$2');
+(function takeInviteFromUrl(){
+  if (EMBEDDED || PANEL) return;
+  try {
+    const u = new URL(location.href), c = u.searchParams.get('invite');
+    if (c){ setInvite(c); u.searchParams.delete('invite'); history.replaceState(null, '', u.pathname + u.search + u.hash); }
+  } catch(e){}
+})();
 
 /* ---------- login med kaldenavn + kode ---------- */
 const normNick = s => String(s || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
@@ -58,10 +74,14 @@ const api = {
   async changeCode(code){ ok(await sb.auth.updateUser({ password: normCode(code) })); },
   async checkProfile(){ const { data, error } = await sb.functions.invoke('check-profile'); if (error) throw error; return data; },
   async signOut(){ await sb.auth.signOut(); },
+  async inviteInfo(code){ const { data, error } = await sb.rpc('invite_info', { p_code: code || null }); if (error) throw error; return data || { status:'not_required' }; },
+  async createInvite(){ return api.rpc('create_invite'); },
+  async revokeInvite(code){ return api.rpc('revoke_invite', { p_code: code }); },
+  async myInvites(){ return ok(await sb.from('invites').select('*').eq('created_by', me()).order('created_at', { ascending:false }).limit(30)); },
 
   // profil
   async myProfile(uid){ return ok(await sb.from('profiles').select('*').eq('id', uid).maybeSingle()); },
-  async createProfile(p){ return ok(await sb.from('profiles').insert({ ...p, id: me() }).select().single()); },
+  async createProfile(p){ return ok(await sb.from('profiles').insert({ ...p, id: me(), ...(EMBEDDED ? {} : { invite_code: getInvite() || null }) }).select().single()); },
   async updateProfile(p){ return ok(await sb.from('profiles').update(p).eq('id', me()).select().single()); },
   async deleteAccount(){ ok(await sb.rpc('delete_my_account')); },
   async members(){ return ok(await sb.from('profiles').select('*').eq('banned', false).order('created_at', { ascending:false }).limit(500)); },
@@ -192,6 +212,7 @@ const api = {
   adminRole(t, role){ return api.rpc('admin_set_role', { p_target:t, p_role:role }); },
   adminResetCode(t){ return api.rpc('admin_reset_code', { p_target:t }); },
   adminAi(on){ return api.rpc('admin_set_ai_check', { p_on:on }); },
+  adminInviteOnly(on){ return api.rpc('admin_set_invite_only', { p_on:on }); },
   subMe(cb){
     const ch = sb.channel('me-' + me()).on('postgres_changes', { event:'UPDATE', schema:'public', table:'profiles', filter:`id=eq.${me()}` }, cb).subscribe();
     return () => sb.removeChannel(ch);
@@ -315,8 +336,8 @@ async function setUser(u){
   if (id === state.uidSet) return;
   state.uidSet = id;
   unsubAll(); Call.reset();
-  Object.assign(state, { user:u, profile:null, ready:false, tab:'rooms', roomId:null, dmWith:null, groupId:null,
-    members:null, threads:[], friendships:[], groups:[], reports:null, banned:null, sheet:null, checking:false, checkFailed:false, authTab:'login', newCode:'' });
+  Object.assign(state, { user:u, profile:null, ready:false, tab:'rooms', roomId:null, dmWith:null, groupId:null, myInvites:null,
+    members:null, threads:[], friendships:[], groups:[], reports:null, banned:null, sheet:null, checking:false, checkFailed:false, authTab: state.invite && state.invite.status === 'ok' ? 'new' : 'login', newCode:'' });
   state.panel = { profiles:null, log:null, settings:null, q:'', filter:'alle' }; stopWatch();
   state.people.clear(); state.gMembers.clear(); state.gLast.clear();
   drawSheet(); render();
@@ -472,8 +493,10 @@ function viewLogin(){
         <button class="btn wide" style="margin-top:14px;font-size:17px;padding:15px" ${state.busy ? 'disabled' : ''}>${state.busy ? 'Logger ind…' : PANEL ? 'Åbn panelet' : 'Log ind'}</button>
         <p class="hint">Har du mistet din kode? Skriv til ${CONFIG.CONTACT_EMAIL ? `<b>${esc(CONFIG.CONTACT_EMAIL)}</b>` : 'en moderator'} med dit kaldenavn, så kan administratoren lave en ny.</p>
       </form>`;
+  } else if (!state.newCode && !PANEL && !inviteReady()){
+    form = state.invite ? viewInviteNeeded(state.invite.status) : '<div class="spin" style="margin:24px auto"></div>';
   } else if (!state.newCode){
-    form = `<form id="newNickForm" novalidate>
+    form = `${state.invite && state.invite.status === 'ok' ? `<div class="invited">Du er inviteret af <b>${esc(state.invite.inviter || 'et medlem')}</b>. Velkommen!</div>` : ''}<form id="newNickForm" novalidate>
         <label class="f" for="nnick">Vælg et kaldenavn</label>
         <input class="input" id="nnick" name="nickname" autocomplete="off" minlength="2" maxlength="30" placeholder="Fx Yusuf, Amina eller bare M" value="${esc(state.newNick || '')}">
         <p class="hint">Det er dit navn i fællesskabet og det, du logger ind med. Brug ikke dit fulde navn, hvis du vil være anonym. Det kan ikke ændres bagefter.</p>
@@ -499,9 +522,83 @@ function viewLogin(){
     <section class="login-sheet"><div class="inner">
       ${PANEL ? '' : `<div class="segment" style="margin:0 0 6px"><button class="${tab === 'login' ? 'on' : ''}" data-action="authtab" data-id="login">Log ind</button><button class="${tab === 'new' ? 'on' : ''}" data-action="authtab" data-id="new">Ny her</button></div>`}
       ${form}
+      ${viewInstall('login')}
       <p class="fine">Vi kender ikke din e-mail eller dit telefonnummer.${PRIVACY_URL ? `<br><a href="${PANEL ? '../' : ''}${PRIVACY_URL}">Sådan passer vi på dine data</a>` : ''}</p>
     </div></section>
   </div></main>`;
+}
+
+/* ---------- invitationer ---------- */
+const INVITE_MSG = {
+  missing:'', invalid:'Linket eller koden virker ikke.', used:'Linket er allerede brugt.', expired:'Linket er udløbet.',
+};
+function inviteReady(){
+  if (EMBEDDED || PANEL) return true;
+  if (!state.invite){ loadInvite(); return false; }
+  return ['ok', 'not_required'].includes(state.invite.status);
+}
+async function loadInvite(){
+  if (state.inviteLoading) return;
+  state.inviteLoading = true;
+  try { state.invite = await api.inviteInfo(getInvite()); }
+  catch(e){ state.invite = { status:'not_required' }; }   // databasen afgør det alligevel
+  state.inviteLoading = false;
+  if (state.invite.status === 'ok' && !state.user) state.authTab = 'new';
+  if (!state.profile) render();
+}
+function viewInviteNeeded(status){
+  const msg = INVITE_MSG[status] ? `<b>${INVITE_MSG[status]}</b> ` : '';
+  return `<div class="panel" style="margin-top:8px">
+      <h3 style="margin:0 0 6px;font-size:19px">Kun for inviterede</h3>
+      <p class="muted" style="margin:0 0 10px">${msg}GetTogether er et lukket fællesskab. Man bliver medlem, når et medlem sender en et invitationslink. Har du fået et link, så åbn det – eller skriv koden her.</p>
+      <form id="inviteForm" novalidate>
+        <label class="f" for="icode">Invitationskode</label>
+        <input class="input code-input" id="icode" name="code" maxlength="200" placeholder="ABCD-EFGH" autocapitalize="characters" spellcheck="false" autocomplete="off">
+        <button class="btn wide" style="margin-top:12px">Brug koden</button>
+      </form>
+    </div>`;
+}
+async function loadMyInvites(){
+  if (state.invLoading) return;
+  state.invLoading = true;
+  try { state.myInvites = await api.myInvites(); } catch(e){ state.myInvites = []; }
+  state.invLoading = false;
+  if (state.tab === 'me' && !inChat()) render();
+}
+function viewInvitesPanel(){
+  const list = state.myInvites;
+  if (!list) loadMyInvites();
+  const now = new Date();
+  const open = (list || []).filter(i => !i.used_by && !i.revoked && new Date(i.expires_at) > now);
+  const used = (list || []).filter(i => i.used_by).length;
+  return `<h3 class="section-title">Inviter en ny</h3>
+    <div class="panel">
+      <p class="muted" style="margin:0 0 12px">GetTogether er kun for inviterede. Lav et link og send det til én person, du kender. Hvert link kan bruges én gang og virker i 14 dage.</p>
+      <button class="btn wide" data-action="invite">Lav et invitationslink</button>
+      ${open.length ? `<p class="hint" style="margin:14px 0 6px"><b>Åbne links (${open.length})</b></p>
+        <div class="card-list" style="margin:0">${open.map(i => `<div class="row" style="cursor:default"><span class="grow"><b style="font-variant-numeric:tabular-nums;letter-spacing:.06em">${esc(fmtInvite(i.code))}</b><small>Virker til ${new Date(i.expires_at).toLocaleDateString('da-DK', { day:'numeric', month:'short' })}</small></span>
+          <button class="link" data-action="invcopy" data-id="${esc(i.code)}">Kopiér</button><button class="link danger" data-action="invrevoke" data-id="${esc(i.code)}" style="margin-left:12px">Slet</button></div>`).join('')}</div>` : ''}
+      ${used ? `<p class="hint">Du har inviteret ${used} ${used === 1 ? 'person' : 'personer'}.</p>` : ''}
+    </div>`;
+}
+
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (!inChat() && !state.sheet) render(); });
+window.addEventListener('appinstalled', () => { installEvt = null; try { localStorage.setItem('gt_install_skip', '1'); } catch(e){} render(); });
+const isStandalone = () => { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch(e){ return false; } };
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const SHARE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Del"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
+function viewInstall(where){
+  if (EMBEDDED || PANEL || APPWRAP || isStandalone()) return '';
+  try { if (localStorage.getItem('gt_install_skip') === '1') return ''; } catch(e){}
+  let how;
+  if (installEvt) how = '<button class="btn wide" data-action="install">Installér GetTogether</button>';
+  else if (isIOS()) how = `<ol class="howto"><li>Tryk på <b>Del</b> <span class="ico">${SHARE_ICON}</span> i Safari</li><li>Vælg <b>Føj til hjemmeskærm</b></li><li>Tryk <b>Tilføj</b></li></ol>
+    <p class="hint" style="margin-top:8px">Åbn GetTogether fra hjemmeskærmen, og log ind med dit kaldenavn og din kode.</p>`;
+  else if (/android/i.test(navigator.userAgent)) how = '<ol class="howto"><li>Tryk på menuen <b>⋮</b> i Chrome</li><li>Vælg <b>Installer app</b> eller <b>Føj til startskærm</b></li></ol>';
+  else how = '<p class="muted" style="margin:0;font-size:14px">Åbn linket på din telefon – så kan du lægge GetTogether på hjemmeskærmen.</p>';
+  return `<div class="install ${where}"><div class="install-head"><div><b>Læg GetTogether på din hjemmeskærm</b><p class="muted">Så åbner den som en app – uden App Store eller Google Play.</p></div>
+    <button class="link" data-action="installskip">Skjul</button></div>${how}</div>`;
 }
 
 /* ---------- AI-tjek af profilen ---------- */
@@ -646,6 +743,7 @@ function sheetPMember(id){
     <div class="facts">
       <div><span class="muted">Oprettet</span>${new Date(p.created_at).toLocaleDateString('da-DK', { day:'numeric', month:'long', year:'numeric' })}</div>
       <div><span class="muted">Profil</span>${{ pending:'Venter på tjek', review:'Til gennemsyn', blocked:'Stoppet', ok:'Godkendt' }[p.ai_status] || '–'}</div>
+      ${p.invited_by ? `<div><span class="muted">Inviteret af</span>${esc(nick(p.invited_by))}</div>` : ''}
       ${isMuted(p) ? `<div><span class="muted">Pause til</span>${new Date(p.muted_until).toLocaleString('da-DK', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}${p.muted_reason ? ` – ${esc(p.muted_reason)}` : ''}</div>` : ''}
       ${p.banned ? `<div><span class="muted">Udelukket</span>${esc(p.banned_reason || '')}</div>` : ''}
     </div>
@@ -698,6 +796,12 @@ function viewSettings(){
       <button class="btn wide ${s.ai_profile_check ? 'ghost' : ''}" data-action="p-ai" data-id="${s.ai_profile_check ? 'off' : 'on'}">${s.ai_profile_check ? 'Slå AI-tjek fra' : 'Slå AI-tjek til'}</button>
       <p class="hint">Kræver at funktionen <b>check-profile</b> er lagt op i Supabase med din Claude-nøgle (README, trin 7).</p>
     </div>
+    <div class="panel" style="margin-top:12px">
+      <h3 style="margin:0 0 6px;font-size:19px">Kun med invitation</h3>
+      <p class="muted" style="margin:0 0 10px">Når det er slået til, kan man kun blive medlem via et link fra et medlem. Hvert link kan bruges én gang og virker i 14 dage. Under Medlemmer kan du se, hvem der inviterede hvem.</p>
+      <p style="margin:0 0 12px"><b>Status:</b> ${s.invite_only !== false ? 'Slået til' : 'Slået fra – alle kan oprette sig'}</p>
+      <button class="btn wide ${s.invite_only !== false ? 'ghost' : ''}" data-action="p-inv" data-id="${s.invite_only !== false ? 'off' : 'on'}">${s.invite_only !== false ? 'Slå kravet fra' : 'Slå kravet til'}</button>
+    </div>
     <h3 class="section-title">Holdet (${team.length})</h3>
     <div class="card-list" style="margin:0">${team.map(p => `<button class="row" data-action="pmember" data-id="${esc(p.id)}">${avatar(p, 36)}<span class="grow"><b>${esc(p.nickname)}</b><small>${ROLE[p.role]}</small></span></button>`).join('')}</div>
     <p class="hint">Gør nogen til moderator under Medlemmer → tryk på personen → Gør til moderator. Moderatorer kan godkende og stoppe profiler, give pause i op til 7 dage, slette beskeder og skrive opslag. Kun du kan udelukke, lave nye koder og vælge moderatorer.</p>
@@ -727,6 +831,7 @@ function repaintPanel(){
 }
 
 function viewOnboarding(){
+  if (!EMBEDDED && !inviteReady()) return `<main><div class="card-center">${state.invite ? viewInviteNeeded(state.invite.status) : '<div class="spin" style="margin:24px auto"></div>'}<p class="fine"><button class="link" data-action="logout">Log ud</button></p></div></main>`;
   return `<main><div class="card-center">
     <h2 class="page-title">Fortæl lidt om dig</h2>
     <p class="muted" style="margin-top:0">Andre ser kun det, du skriver her. Et kaldenavn er helt fint.</p>
@@ -796,6 +901,7 @@ function viewRooms(){
       <p>Hvad har du lyst til at tale om i dag?</p>
     </section>
     ${inc ? `<button class="notice" data-action="tab" data-id="friends">${ICON.friends}<span class="grow">${inc === 1 ? `${esc(nick(incoming()[0].requester))} vil gerne være ven med dig` : `${inc} venneanmodninger venter på dig`}</span>${ICON.chev}</button>` : ''}
+    ${viewInstall('home')}
     ${viewAnnouncements()}
     <h3 class="group-title">Fællesrum</h3>
     <div class="card-list"><ul class="list" style="padding:0">${common.map(row).join('')}</ul></div>
@@ -951,6 +1057,7 @@ function viewMe(){
       ${CALLS ? '<p class="hint">Kun venner kan ringe til dig.</p>' : ''}
       <button class="btn wide" style="margin-top:16px">Gem profil</button>
     </form>
+    ${EMBEDDED ? '' : viewInvitesPanel()}
     ${blocked.length ? `<h3 class="section-title">Blokerede</h3><div class="card-list" style="margin:0">${blocked.map(id => `<div class="row" style="cursor:default"><span class="grow">${esc(nick(id))}</span><button class="link" data-action="unblock" data-id="${esc(id)}">Fjern blokering</button></div>`).join('')}</div>` : ''}
     <h3 class="section-title">Regler</h3>${RULES}
     <h3 class="section-title">Konto og data</h3>
@@ -1604,6 +1711,34 @@ ROOT.addEventListener('click', async e => {
       case 'appeal':
         await api.report('profile', state.user.id, 'Klage: min profil blev stoppet, men jeg mener, det er en fejl.');
         toast('Tak. En moderator ser på din profil.'); break;
+      case 'invite': {
+        b.disabled = true;
+        try {
+          const code = await api.createInvite();
+          const link = inviteLink(code);
+          state.myInvites = null; render();
+          let shared = false;
+          if (navigator.share && !APPWRAP){
+            try { await navigator.share({ title:'Invitation til GetTogether', text:'Du er inviteret til GetTogether – et trygt fællesskab for muslimer i Danmark. Linket virker én gang.', url:link }); shared = true; }
+            catch(err){ if (err && err.name === 'AbortError') shared = true; }
+          }
+          if (!shared) await ask({ title:'Dit invitationslink', text:'Send det til én person, du kender – fx på SMS eller WhatsApp. Det kan bruges én gang og virker i 14 dage.', copy:link, ok:'Færdig', cancel:null });
+        } finally { b.disabled = false; }
+        break;
+      }
+      case 'invcopy': copyText(inviteLink(id)); break;
+      case 'invrevoke':
+        if (!(await ask({ title:'Slet invitationen?', text:'Linket holder op med at virke.', ok:'Slet', danger:true }))) return;
+        await api.revokeInvite(id); state.myInvites = null; render(); break;
+      case 'install':
+        if (installEvt){ installEvt.prompt(); try { await installEvt.userChoice; } catch(err){} installEvt = null; render(); }
+        break;
+      case 'installskip': try { localStorage.setItem('gt_install_skip', '1'); } catch(err){} render(); break;
+      case 'p-inv': {
+        const on = id === 'on';
+        if (!(await ask({ title: on ? 'Kun med invitation?' : 'Lad alle oprette sig?', text: on ? 'Nye kan kun blive medlem via et link fra et medlem.' : 'Alle med adressen kan oprette en profil uden invitation.', ok: on ? 'Slå til' : 'Slå fra', danger: !on }))) return;
+        await api.adminInviteOnly(on); await loadPanel(); toast(on ? 'Kun med invitation er slået til.' : 'Alle kan nu oprette sig.'); break;
+      }
       case 'changecode': {
         const code = makeCode();
         const okd = await ask({ title:'Din nye kode', text:'Gem den et sikkert sted, før du trykker Brug koden. Den gamle kode holder op med at virke.', copy:code, ok:'Brug koden' });
@@ -1693,6 +1828,15 @@ async function handleForm(f){
       catch(err){ state.busy = false; render(); toast(errMsg(err, 'signup')); return; }
       state.busy = false; state.newCode = '';
     }
+    if (f.id === 'inviteForm'){
+      const raw = String(d.code || '').trim(), m = raw.match(/invite=([A-Za-z0-9-]+)/);
+      const c = (m ? m[1] : raw).trim();
+      if (!c){ toast('Skriv koden fra dit link, fx ABCD-EFGH.'); return; }
+      const info = await api.inviteInfo(c);
+      if (info.status === 'ok' || info.status === 'not_required'){ setInvite(c); state.invite = info; render(); toast('Velkommen! Vælg et kaldenavn.'); }
+      else toast(INVITE_MSG[info.status] || 'Koden virker ikke.');
+      return;
+    }
     if (f.id === 'onbForm'){
       const btn = f.querySelector('button.btn'); btn.disabled = true;
       try {
@@ -1702,6 +1846,7 @@ async function handleForm(f){
           adult_confirmed:true, rules_accepted:true, privacy_consent_at:new Date().toISOString(),
         });
       } catch(err){ btn.disabled = false; toast(errMsg(err)); return; }
+      setInvite(''); if (state.invite) state.invite = { status:'not_required' };
       // Nur (guiden) tiltaler dig som bror eller søster – brug det køn, du lige har valgt
       store.set('nur_addr', d.gender === 'kvinde' ? 'soester' : 'bror');
       if (state.profile.ai_status === 'pending'){ runCheck(); return; }
@@ -1759,7 +1904,7 @@ async function handleForm(f){
 // Formularer håndteres via klik/Enter (virker også i indlejrede visninger og app-webviews)
 function trySubmit(f){
   if (!f || f.dataset.busy) return;
-  if (!['loginForm','newNickForm','newCodeForm'].includes(f.id) && !f.reportValidity()) return;
+  if (!['loginForm','newNickForm','newCodeForm','inviteForm'].includes(f.id) && !f.reportValidity()) return;
   f.dataset.busy = '1';
   handleForm(f).finally(() => { delete f.dataset.busy; });
 }
@@ -1811,6 +1956,7 @@ render();
 if (CONFIGURED){
   api.onAuth(u => setUser(u));
   api.session().then(u => setUser(u)).catch(() => setUser(null));
+  if (!EMBEDDED && !PANEL) loadInvite();
 }
 // Tilbage-knappen i Android-appen: luk det øverste (dialog, kort, chat, fane). false = gå ud til guiden.
 window.GT_BACK = () => {
@@ -1823,6 +1969,7 @@ window.GT_BACK = () => {
   return false;
 };
 
-if ('serviceWorker' in navigator && location.protocol === 'https:' && !PREVIEW && !EMBEDDED && !PANEL){
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !PREVIEW && !EMBEDDED && !PANEL && !APPWRAP){
   navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.register('../sw.js').catch(() => {});   // gør hele appen (fra start-siden) installerbar
 }

@@ -60,6 +60,7 @@ writeFileSync(cfg, cfgTekst + `
 // --- tilføjet af appen ---
 window.APP_CONFIG.GUIDE_URL = '../index.html';
 window.APP_CONFIG.PRIVACY_URL = '${SITE}/faellesskab/privatliv.html';
+window.APP_CONFIG.INVITE_BASE = '${SITE}/faellesskab/';
 `);
 
 // Advarsler, så appen ikke bliver sendt ud halvfærdig

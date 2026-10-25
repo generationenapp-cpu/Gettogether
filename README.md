@@ -52,11 +52,20 @@ npx netlify-cli deploy --prod
 Kør det i denne mappe. Har du allerede siden **gettogether-by-malik**, så vælg den – så får du samme adresse som før, og tælleren bevares.
 
 ## Trin 5 – Gør dig selv til administrator
-Åbn Fællesskab, tryk **Ny her**, vælg dit kaldenavn og **gem din kode**. Opret profilen. Kør så i Supabase **SQL Editor** (ret kaldenavnet):
+Gør det **lige efter**, du har lagt siden op: den allerførste profil kræver ingen invitation – alle andre gør. Åbn Fællesskab, tryk **Ny her**, vælg dit kaldenavn og **gem din kode**. Opret profilen. Kør så i Supabase **SQL Editor** (ret kaldenavnet):
 ```sql
 update public.profiles set role = 'admin' where lower(nickname) = lower('DIT-KALDENAVN');
 ```
 Det er den eneste gang, du skal bruge SQL. Resten klarer du i panelet.
+
+## Kun med invitation – sådan bliver man medlem
+GetTogether er et **lukket fællesskab**. Man bliver medlem, når et medlem sender en et link:
+- Medlemmer laver et link under **Profil → Inviter en ny** og sender det på SMS, WhatsApp osv. Hvert link kan bruges **én gang** og virker i **14 dage**. Et almindeligt medlem kan have 5 åbne links ad gangen.
+- Den, der får linket, ser "Du er inviteret af …" og opretter sin profil. Uden link står der "Kun for inviterede" – man kan også skrive koden fra linket.
+- I panelet kan du se, hvem der inviterede hvem (Medlemmer → personen), og slå kravet fra under **Indstillinger**, hvis du en dag vil åbne for alle.
+- Siden er skjult for Google og andre søgemaskiner.
+
+**Som app på telefonen:** Fællesskabet viser selv, hvordan man lægger GetTogether på hjemmeskærmen – én knap på Android, og tre korte trin på iPhone (Del → Føj til hjemmeskærm → Tilføj). Så åbner den som en app uden App Store og Google Play. På iPhone skal man logge ind igen i appen med sit kaldenavn og sin kode.
 
 ## Trin 6 – Moderatorpanelet
 Adresse: **`https://DIN-SIDE.netlify.app/faellesskab/panel/`** – log ind med dit kaldenavn og din kode.

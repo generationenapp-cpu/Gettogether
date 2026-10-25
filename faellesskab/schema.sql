@@ -700,6 +700,7 @@ begin
   new.muted_until := old.muted_until; new.muted_reason := old.muted_reason;
   new.privacy_consent_at := old.privacy_consent_at;
   new.ai_status := old.ai_status; new.ai_reason := old.ai_reason; new.ai_checked_at := old.ai_checked_at;
+  new.invited_by := old.invited_by;
   -- ny tekst på profilen skal tjekkes igen (ikke for moderatorer og admin)
   if public.ai_check_on() and old.role = 'member'
      and (new.bio is distinct from old.bio or new.city is distinct from old.city or new.interests is distinct from old.interests) then
@@ -897,6 +898,118 @@ create policy "log_read" on public.mod_log for select to authenticated using (pu
 
 do $$ begin alter publication supabase_realtime add table public.announcements; exception when duplicate_object then null; end $$;
 do $$ begin alter publication supabase_realtime add table public.profiles;      exception when duplicate_object then null; end $$;
+
+-- =====================================================================
+--  v4: KUN MED INVITATION
+--  Man bliver medlem via et link fra et medlem. Hvert link kan bruges én
+--  gang og holder i 14 dage. Den allerførste profil (din) kræver intet link.
+--  Administratoren kan slå kravet fra i panelet (Indstillinger).
+-- =====================================================================
+alter table public.app_settings add column if not exists invite_only boolean not null default true;
+alter table public.profiles add column if not exists invited_by uuid references public.profiles(id) on delete set null;
+alter table public.profiles add column if not exists invite_code text;   -- kun brugt under oprettelsen, gemmes aldrig
+
+create table if not exists public.invites (
+  code       text primary key,
+  created_by uuid references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default now() + interval '14 days',
+  used_by    uuid,
+  used_at    timestamptz,
+  revoked    boolean not null default false
+);
+create index if not exists invites_creator on public.invites(created_by);
+alter table public.invites enable row level security;
+drop policy if exists "invites_read" on public.invites;
+create policy "invites_read" on public.invites for select to authenticated
+  using (created_by = auth.uid() or public.is_mod());
+
+create or replace function public.clean_invite(p text) returns text
+language sql immutable as $$ select upper(regexp_replace(coalesce(p, ''), '[^A-Za-z0-9]', '', 'g')) $$;
+
+-- Ny profil: kræver en gyldig invitation (bortset fra den allerførste og SQL Editor)
+create or replace function public.profiles_invite() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare inv public.invites%rowtype; c text := public.clean_invite(new.invite_code);
+begin
+  new.invite_code := null;
+  new.invited_by := null;
+  if auth.uid() is null then return new; end if;
+  if not coalesce((select invite_only from app_settings where id = 1), true) then return new; end if;
+  if not exists (select 1 from profiles) then return new; end if;
+  if c = '' then
+    raise exception 'Du skal have en invitation fra et medlem for at blive medlem.';
+  end if;
+  select * into inv from invites where code = c for update;
+  if not found or inv.revoked or inv.used_by is not null or inv.expires_at < now() then
+    raise exception 'Invitationen er ugyldig, udløbet eller allerede brugt. Bed om et nyt link.';
+  end if;
+  update invites set used_by = new.id, used_at = now() where code = c;
+  new.invited_by := inv.created_by;
+  return new;
+end $$;
+drop trigger if exists profiles_invite_trg on public.profiles;
+create trigger profiles_invite_trg before insert on public.profiles
+for each row execute function public.profiles_invite();
+
+-- Kan bruges uden login: er linket gyldigt, og hvem inviterede?
+create or replace function public.invite_info(p_code text) returns json
+language plpgsql stable security definer set search_path = public as $$
+declare inv public.invites%rowtype; c text := public.clean_invite(p_code);
+begin
+  if not coalesce((select invite_only from app_settings where id = 1), true) or not exists (select 1 from profiles) then
+    return json_build_object('status', 'not_required');
+  end if;
+  if c = '' then return json_build_object('status', 'missing'); end if;
+  select * into inv from invites where code = c;
+  if not found or inv.revoked then return json_build_object('status', 'invalid'); end if;
+  if inv.used_by is not null then return json_build_object('status', 'used'); end if;
+  if inv.expires_at < now() then return json_build_object('status', 'expired'); end if;
+  return json_build_object('status', 'ok', 'inviter', (select nickname from profiles where id = inv.created_by));
+end $$;
+
+-- Lav et invitationslink (højst 5 åbne ad gangen – moderatorer og admin har ingen grænse)
+create or replace function public.create_invite() returns text
+language plpgsql security definer set search_path = public, extensions as $$
+declare c text; alphabet text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; b bytea; i int;
+begin
+  if not public.is_active() then raise exception 'Kun aktive medlemmer kan invitere.'; end if;
+  if not public.is_mod() and (select count(*) from invites where created_by = auth.uid()
+      and used_by is null and not revoked and expires_at > now()) >= 5 then
+    raise exception 'Du har allerede 5 åbne invitationer. Vent til de bliver brugt, eller slet en.';
+  end if;
+  loop
+    b := gen_random_bytes(8); c := '';
+    for i in 0..7 loop c := c || substr(alphabet, 1 + (get_byte(b, i) % 32), 1); end loop;
+    exit when not exists (select 1 from invites where code = c);
+  end loop;
+  insert into invites (code, created_by) values (c, auth.uid());
+  return c;
+end $$;
+
+create or replace function public.revoke_invite(p_code text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  update invites set revoked = true
+  where code = public.clean_invite(p_code) and used_by is null and (created_by = auth.uid() or public.is_admin());
+end $$;
+
+create or replace function public.admin_set_invite_only(p_on boolean) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'Kun admin.'; end if;
+  update app_settings set invite_only = p_on, updated_at = now() where id = 1;
+  perform public.log_mod(case when p_on then 'slog kun med invitation til' else 'slog kun med invitation fra' end, null, null);
+end $$;
+
+revoke all on function public.invite_info(text) from public;
+grant execute on function public.invite_info(text) to anon, authenticated;
+do $$ declare f text; begin
+  foreach f in array array['create_invite()','revoke_invite(text)','admin_set_invite_only(boolean)'] loop
+    execute format('revoke all on function public.%s from public, anon', f);
+    execute format('grant execute on function public.%s to authenticated', f);
+  end loop;
+end $$;
 
 -- ---------- Gør dig selv til admin (kør EFTER du har oprettet din profil i appen) ----------
 -- Skriv dit kaldenavn i stedet for DIT-KALDENAVN:

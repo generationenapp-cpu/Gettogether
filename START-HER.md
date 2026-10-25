@@ -27,13 +27,14 @@ Du skal bruge din Lenovo med **Node.js** (nodejs.org, LTS) og en browser.
 Står der et **X**, så ret det først. Punkt 2 lægger hjemmesiden op på Netlify.
 
 ### ☐ 5. Gør dig selv til administrator
-1. Åbn din hjemmeside → **Fællesskab** → **Ny her** → vælg kaldenavn → **gem koden** → opret profil.
+1. Gør det lige efter trin 4: åbn **Fællesskab** → **Ny her** → vælg kaldenavn → **gem koden** → opret profil. Den allerførste profil kræver ingen invitation.
 2. Supabase → **SQL Editor** (skriv dit kaldenavn):
    ```sql
    update public.profiles set role = 'admin' where lower(nickname) = lower('DIT-KALDENAVN');
    ```
 3. Gå til `din-side/faellesskab/panel/` → log ind → **Indstillinger** → slå **AI-tjek** til.
 4. **Medlemmer** → vælg dine moderatorer → **Gør til moderator**.
+5. Inviter de første: **Profil → Inviter en ny** → send linket. Hvert link kan bruges én gang.
 
 ### ☐ 6. Test hjemmesiden med to telefoner
 - Opret to profiler, bliv venner, skriv privat, lav en gruppe og ring op.

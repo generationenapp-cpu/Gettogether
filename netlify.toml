@@ -11,6 +11,7 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Strict-Transport-Security = "max-age=31536000"
+    X-Robots-Tag = "noindex, nofollow"
 
 [[headers]]
   for = "/sw.js"
