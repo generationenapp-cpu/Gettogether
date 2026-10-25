@@ -245,6 +245,7 @@ details.vid[open] summary::after{content:"–"}
       <button class="ghost" id="d-next" type="button" data-i="nextR"></button>
     </div>
   </div>
+<button class="door" type="button" id="nurbanner" hidden data-go="spoerg" style="border-color:var(--gold)"><span class="eyebrow" data-i="nbEy"></span><b id="nb-txt" style="font-size:1.05rem"></b><span class="muted" style="font-size:.9rem" data-i="nbHow"></span></button>
 <button class="flowcta" type="button" data-flow="1"><svg viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="28" fill="none" stroke="var(--gold)" stroke-width="1.2"/><circle cx="30" cy="17" r="4.5" fill="none" stroke="var(--gold)" stroke-width="2"/><path d="M30 22v15M30 37l-6 13M30 37l6 13M30 27l-7 5M30 27l7 5" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round"/></svg><span><span class="eyebrow" data-i="flowEy"></span><h3 data-i="flowCta" style="margin-top:4px"></h3><span class="muted" style="font-size:.88rem" data-i="flowCtaSub"></span></span><span class="gold" style="pointer-events:none" data-i="flowGo"></span></button>
   <div class="doors">
     <button class="door" data-go="laer" type="button"><span class="ic">تعلّم</span><h3 data-i="nav_laer"></h3><span data-i="door1"></span></button>
@@ -635,7 +636,9 @@ const NYT_NOEGLE={
   noCredit:"Der er ingen penge på din Anthropic-konto endnu. Sæt et beløb ind under Billing på platform.claude.com.",
   limitHour:"Du har skrevet meget til Nur den sidste time. Hold en lille pause, og prøv igen om lidt.",
   limitDay:"Nur har fået rigtig mange spørgsmål i dag. Prøv igen i morgen – eller brug din egen AI-nøgle under 🌐.",
-  nurPause:"Nur holder en kort pause lige nu. Prøv igen senere.",tooBig:"Billedet er for stort. Prøv et mindre billede."},
+  nurPause:"Nur holder en kort pause lige nu. Du kan bruge din egen AI-nøgle imens – guiden ligger under Spørg.",tooBig:"Billedet er for stort. Prøv et mindre billede.",
+  nbEy:"Nur – din AI-hjælper",nbTxt:"Nur åbner for alle den {d}",nbHow:"Indtil da kan du bruge Nur med din egen AI-nøgle. Tryk her for at se hvordan – det tager ca. 3 minutter.",
+  opensNote:"Nur åbner for alle den {d}. Indtil da kan du bruge Nur med din egen AI-nøgle – følg guiden herunder (ca. 3 min)."},
  en:{kgH:"How to get your own AI key (about 3 min)",
   kgNote:"Nur needs an AI key to answer. Follow the guide below – it takes about 3 minutes.",
   kgSteps:'<ol style="margin:0;padding-left:1.2em;display:grid;gap:8px"><li>Open <a href="https://platform.claude.com" target="_blank" rel="noopener">platform.claude.com</a> – Anthropic\'s site for AI keys (formerly console.anthropic.com). Sign up with your email or Google.</li><li>Tap <b>Billing</b> and add a small amount, e.g. $5 (the minimum). The key only works once there is money on the account, and you only pay for what you use.</li><li>Tap <b>API Keys</b> → <b>Create Key</b>. Name it e.g. <i>Nur</i> and tap <b>Create</b>.</li><li>Tap <b>Copy</b>. The key starts with <code style="white-space:nowrap">sk-ant-</code> and is only shown once.</li><li>Come back here, paste the key into the field below and tap <b>Save key</b>.</li></ol>',
@@ -647,7 +650,9 @@ const NYT_NOEGLE={
   noCredit:"There is no money on your Anthropic account yet. Add an amount under Billing on platform.claude.com.",
   limitHour:"You have written a lot to Nur in the last hour. Take a short break and try again soon.",
   limitDay:"Nur has had a lot of questions today. Try again tomorrow – or use your own AI key under 🌐.",
-  nurPause:"Nur is taking a short break right now. Try again later.",tooBig:"The picture is too large. Try a smaller one."}};
+  nurPause:"Nur is taking a short break right now. You can use your own AI key meanwhile – the guide is under Ask.",tooBig:"The picture is too large. Try a smaller one.",
+  nbEy:"Nur – your AI helper",nbTxt:"Nur opens for everyone on {d}",nbHow:"Until then you can use Nur with your own AI key. Tap here to see how – it takes about 3 minutes.",
+  opensNote:"Nur opens for everyone on {d}. Until then you can use Nur with your own AI key – follow the guide below (about 3 min)."}};
 for(const c in NYT_NOEGLE)T[c]=Object.assign(T[c]||{},NYT_NOEGLE[c]);
 document.querySelectorAll("[data-vid]").forEach(b=>b.addEventListener("click",()=>{const d=document.getElementById(b.dataset.vid);if(d){d.open=true;setTimeout(()=>d.scrollIntoView({block:"start"}),60)}}));
 const extra=ls.get("nur_trans",{});
@@ -674,13 +679,16 @@ async function hentSprog(code){if(code==="da"||code==="en"||filer[code]||!FILLAN
   try{const r=await fetch("lang/"+code+".json");if(!r.ok)throw 0;filer[code]=await r.json();return true}catch(e){return false}finally{ld.hide()}}
 async function vaelg(code){if(await hentSprog(code)){lang=code;ls.set("nur_lang",lang);applyLang()}}
 
-let sampleFn=null,kanBilleder=false,serverAI=false;
+let sampleFn=null,kanBilleder=false,serverAI=false,nurOpens=null;
 const MODEL="claude-sonnet-5-5";
 const egenNoegle=()=>ls.get("nur_key","");
 const harAI=()=>!!sampleFn||!!egenNoegle()||serverAI;
+function aabnerTxt(){if(!nurOpens)return"";const d=new Date(nurOpens+"T12:00:00");
+  try{return d.toLocaleDateString(lang==="da"?"da-DK":lang,{day:"numeric",month:"long"})}catch(e){return d.toLocaleDateString("en",{day:"numeric",month:"long"})}}
 function noteAI(){const ok=harAI(),kg=document.getElementById("keyguide"),visGuide=!sampleFn&&!egenNoegle()&&!serverAI;
   if(kg){kg.hidden=!visGuide;if(visGuide&&!kg.dataset.seen){kg.open=true;kg.dataset.seen="1"}}
-  document.getElementById("cnote").textContent=ok?t("aiNote"):visGuide?t("kgNote"):t("needAI");
+  const nb=document.getElementById("nurbanner");if(nb){nb.hidden=!(visGuide&&nurOpens);if(!nb.hidden)document.getElementById("nb-txt").textContent=t("nbTxt",{d:aabnerTxt()})}
+  document.getElementById("cnote").textContent=ok?t("aiNote"):visGuide?(nurOpens?t("opensNote",{d:aabnerTxt()}):t("kgNote")):t("needAI");
   document.getElementById("csend").disabled=!ok;document.getElementById("s-go").disabled=!ok;document.getElementById("translate").disabled=!ok}
 const fileB64=f=>new Promise((r,j)=>{const fr=new FileReader();fr.onload=()=>r(String(fr.result).split(",")[1]);fr.onerror=j;fr.readAsDataURL(f)});
 async function ai(input,{json=false,onText,signal,images,maxTokens=2000}={}){
@@ -709,7 +717,8 @@ async function nurServer(input,{json,onText,signal,images,maxTokens}){
   let res;try{res=await fetch("/api/nur",{method:"POST",signal,headers:{"content-type":"application/json"},body:JSON.stringify({messages,images:imgs,max_tokens:maxTokens})})}
   catch(e){throw e&&e.name==="AbortError"?{code:"aborted"}:{code:"network"}}
   let j={};try{j=await res.json()}catch(e){}
-  if(!res.ok)throw{code:{limit_hour:"limit_hour",limit_day:"limit_day",busy:"rate_limited",no_credit:"nur_pause",off:"nur_pause",not_configured:"nur_pause",too_big:"too_big"}[j.error]||"http"};
+  if(!res.ok){const code={limit_hour:"limit_hour",limit_day:"limit_day",busy:"rate_limited",no_credit:"nur_pause",off:"nur_pause",not_configured:"nur_pause",too_big:"too_big"}[j.error]||"http";
+    if(code==="nur_pause"){serverAI=false;setTimeout(noteAI,0)}throw{code}}
   const text=j.text||"";if(onText)onText({text});
   if(!json)return text;const m=text.match(/[\[{][\s\S]*[\]}]/);if(!m)throw{code:"parse"};return JSON.parse(m[0])}
 const fejlTxt=e=>({not_granted:t("notGranted"),rate_limited:t("rateLimited"),aborted:t("stopped"),bad_key:t("badKey"),no_ai:t("needAI"),no_credit:t("noCredit"),limit_hour:t("limitHour"),limit_day:t("limitDay"),nur_pause:t("nurPause"),too_big:t("tooBig")}[e&&e.code]||t("genericErr"));
@@ -1042,7 +1051,7 @@ document.getElementById("translate").onclick=async()=>{await klar;const navn=doc
 
 const klar=(async()=>{try{sampleFn=window.claude&&window.claude.use?await window.claude.use("sample"):null;
   if(sampleFn){const l=sampleFn.limits?await sampleFn.limits():null;kanBilleder=!!(l&&l.images)}}catch(e){sampleFn=null}
-  if(!sampleFn){try{const r=await fetch("/api/nur",{cache:"no-store"});if(r.ok)serverAI=!!(await r.json()).enabled}catch(e){serverAI=false}}
+  if(!sampleFn){try{const r=await fetch("/api/nur",{cache:"no-store"});if(r.ok){const j=await r.json();serverAI=!!j.enabled;nurOpens=/^\d{4}-\d{2}-\d{2}$/.test(j.opens||"")?j.opens:null}}catch(e){serverAI=false}}
   document.getElementById("keybox").hidden=!!sampleFn;noteAI()})();
 (async()=>{const want=lang;if(FILLANG.has(want)){if(!(await hentSprog(want)))lang="en"}
   else if(!(want==="da"||want==="en"||extra[want]))lang="en";applyLang();requestAnimationFrame(drawPattern)})();

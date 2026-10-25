@@ -1028,8 +1028,11 @@ grant execute on function public.nur_count(boolean) to service_role;
 --  Supabase-funktionen "nur" bruger ANTHROPIC_API_KEY, så Nur virker for alle.
 --  Loft: pr. person (hash af IP-adressen – aldrig selve adressen) pr. time
 --  og samlet pr. dag. Kan ændres her i app_settings.
+--  nur_ai_on = false + nur_ai_opens = dato: Nur åbner selv for alle på datoen,
+--  og indtil da viser guiden datoen og guiden til egen AI-nøgle.
 -- =====================================================================
 alter table public.app_settings add column if not exists nur_ai_on boolean not null default true;
+alter table public.app_settings add column if not exists nur_ai_opens date;
 alter table public.app_settings add column if not exists nur_ai_hour_limit int not null default 30;
 alter table public.app_settings add column if not exists nur_ai_day_limit int not null default 1500;
 
@@ -1045,8 +1048,11 @@ create or replace function public.nur_ai_take(p_who text) returns text
 language plpgsql volatile security definer set search_path = public as $$
 declare s record; u record; g record;
 begin
-  select nur_ai_on, nur_ai_hour_limit, nur_ai_day_limit into s from app_settings where id = 1;
-  if not coalesce(s.nur_ai_on, true) then return 'off'; end if;
+  select nur_ai_on, nur_ai_opens, nur_ai_hour_limit, nur_ai_day_limit into s from app_settings where id = 1;
+  if not (coalesce(s.nur_ai_on, true)
+          or (s.nur_ai_opens is not null and (now() at time zone 'Europe/Copenhagen')::date >= s.nur_ai_opens)) then
+    return 'off';
+  end if;
   insert into nur_ai_usage (who, win_start, n) values ('alle', date_trunc('day', now()), 0) on conflict (who) do nothing;
   select * into g from nur_ai_usage where who = 'alle' for update;
   if g.win_start < date_trunc('day', now()) then

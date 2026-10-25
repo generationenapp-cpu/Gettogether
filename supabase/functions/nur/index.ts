@@ -50,14 +50,16 @@ Deno.serve(async (req: Request) => {
     key = typeof data === 'string' ? data : '';
   }
 
-  // GET: må guiden bruge Nur på fællesskabets nøgle?
+  // GET: må guiden bruge Nur på fællesskabets nøgle? (og hvornår åbner den)
   if (req.method === 'GET') {
-    let on = true;
+    let on = true, opens: string | null = null;
     try {
-      const { data } = await db.from('app_settings').select('nur_ai_on').eq('id', 1).maybeSingle();
-      on = data?.nur_ai_on !== false;
+      const { data } = await db.from('app_settings').select('nur_ai_on, nur_ai_opens').eq('id', 1).maybeSingle();
+      opens = data?.nur_ai_opens ?? null;
+      const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Copenhagen' });
+      on = data?.nur_ai_on !== false || (!!opens && today >= opens);
     } catch (_e) { /* standard: til */ }
-    return reply({ enabled: !!key && on });
+    return reply({ enabled: !!key && on, opens: on ? null : opens });
   }
   if (req.method !== 'POST') return reply({ error: 'method' }, 405);
   if (!key) return reply({ error: 'not_configured' }, 503);
