@@ -81,7 +81,7 @@ def main():
         z = Path(o.zip); z.unlink(missing_ok=True)
         with zipfile.ZipFile(z, 'w', zipfile.ZIP_DEFLATED) as zf:
             for p in sorted(out.rglob('*')):
-                if p.is_file(): zf.write(p, Path(out.name) / p.relative_to(out))
+                if p.is_file(): zf.write(p, p.relative_to(out))  # filerne ligger i roden af zip'en, som Netlify vil have det
     n = sum(1 for p in out.rglob('*') if p.is_file())
     print(f'ok {n} filer -> {out}' + (f' og {o.zip}' if o.zip else ''))
 
