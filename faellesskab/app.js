@@ -1040,6 +1040,7 @@ function viewMe(){
       <button class="btn wide" style="margin-top:16px">Gem profil</button>
     </form>
     ${EMBEDDED ? '' : viewInvitesPanel()}
+    ${!EMBEDDED && isMod() ? `<h3 class="section-title">Admin-panel</h3><div class="panel"><p class="muted" style="margin:0 0 12px">Kun du${isAdminRole() ? ' og dine moderatorer' : ' og de andre moderatorer'} kan se det her. I panelet ser du nye medlemmer og sager og styrer fællesskabets link. Læg det på hjemmeskærmen, så har du det som din egen app.</p><a class="btn wide" href="panel/">Åbn admin-panelet</a></div>` : ''}
     ${blocked.length ? `<h3 class="section-title">Blokerede</h3><div class="card-list" style="margin:0">${blocked.map(id => `<div class="row" style="cursor:default"><span class="grow">${esc(nick(id))}</span><button class="link" data-action="unblock" data-id="${esc(id)}">Fjern blokering</button></div>`).join('')}</div>` : ''}
     <h3 class="section-title">Regler</h3>${RULES}
     <h3 class="section-title">Konto og data</h3>
