@@ -858,7 +858,7 @@ function viewBanned(){
   return `<main><div class="card-center">
     <h2 class="page-title">Din konto er udelukket</h2>
     <p class="muted">En moderator har udelukket din konto${state.profile.banned_reason ? ` med begrundelsen: <b>${esc(state.profile.banned_reason)}</b>` : '.'}</p>
-    <p class="muted">Mener du, det er en fejl, så skriv til <a href="mailto:${esc(CONFIG.CONTACT_EMAIL)}">${esc(CONFIG.CONTACT_EMAIL)}</a>.</p>
+    ${CONFIG.CONTACT_EMAIL ? `<p class="muted">Mener du, det er en fejl, så skriv til <a href="mailto:${esc(CONFIG.CONTACT_EMAIL)}">${esc(CONFIG.CONTACT_EMAIL)}</a>.</p>` : ''}
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:20px">
       ${EMBEDDED ? '' : '<button class="btn ghost" data-action="logout">Log ud</button>'}
       <button class="btn danger" data-action="deleteaccount">Slet min konto og alle mine data</button>

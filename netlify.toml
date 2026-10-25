@@ -62,6 +62,19 @@
   status = 404
   force = true
 
+# Vejledningerne og pakkefilen er til dig, ikke til hjemmesiden
+[[redirects]]
+  from = "/README.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/package.json"
+  to = "/404.html"
+  status = 404
+  force = true
+
 # AI-funktionen køres hos Supabase, ikke på hjemmesiden
 [[redirects]]
   from = "/supabase/*"

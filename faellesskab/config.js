@@ -4,21 +4,22 @@
    ============================================================= */
 window.APP_CONFIG = {
   // Supabase → Project Settings → API
-  SUPABASE_URL: 'https://DIT-PROJEKT.supabase.co',
-  SUPABASE_ANON_KEY: 'DIN-ANON-PUBLIC-KEY',
+  SUPABASE_URL: 'https://obgvmfiincvhifkzkitp.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9iZ3ZtZmlpbmN2aGlma3praXRwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5NDAyNTIsImV4cCI6MjEwODUxNjI1Mn0._Ix6o4ItfuxVZL9o0DVuaEtR0JP9lXSoGpBweuR-Om4',
 
   // Vises i appen
   APP_NAME: 'GetTogether',
 
   // Login med kaldenavn + kode: Supabase skal bruge en e-mail bag kulisserne.
-  // Skriv et domæne, du ejer, som kan modtage mail (fx dit firmadomæne).
+  // Her bruges projektets egen Supabase-adresse (testet: login virker).
   // Der bliver ALDRIG sendt mails dertil, og ingen medlemmer ser det.
-  LOGIN_DOMAIN: 'DIT-DOMÆNE.dk',
+  // Ret den ALDRIG, når der først er medlemmer – så kan de ikke logge ind.
+  LOGIN_DOMAIN: 'obgvmfiincvhifkzkitp.supabase.co',
 
-  // Bruges i privatlivspolitikken + når brugere skal kontakte jer (GDPR-krav)
-  CONTROLLER_NAME: 'Dit navn eller virksomhedsnavn',
-  CONTROLLER_ID: 'CVR-nr. eller adresse',
-  CONTACT_EMAIL: 'kontakt@ditdomæne.dk',
+  // Bruges i privatlivspolitikken. Uden CONTACT_EMAIL kontakter man jer inde i fællesskabet.
+  CONTROLLER_NAME: 'Malik',
+  CONTROLLER_ID: '',
+  CONTACT_EMAIL: '',
 
   // Servere der hjælper telefonopkald med at finde vej mellem to telefoner.
   // STUN er gratis og virker på de fleste netværk. Tilføj en TURN-server
