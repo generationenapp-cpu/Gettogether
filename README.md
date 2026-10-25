@@ -52,20 +52,22 @@ npx netlify-cli deploy --prod
 Kør det i denne mappe. Har du allerede siden **gettogether-by-malik**, så vælg den – så får du samme adresse som før, og tælleren bevares.
 
 ## Trin 5 – Gør dig selv til administrator
-Gør det **lige efter**, du har lagt siden op: den allerførste profil kræver ingen invitation – alle andre gør. Åbn Fællesskab, tryk **Ny her**, vælg dit kaldenavn og **gem din kode**. Opret profilen. Kør så i Supabase **SQL Editor** (ret kaldenavnet):
+Gør det **lige efter**, du har lagt siden op: den allerførste profil kræver ikke linket – alle andre gør. Åbn Fællesskab, tryk **Ny her**, vælg dit kaldenavn og **gem din kode**. Opret profilen. Kør så i Supabase **SQL Editor** (ret kaldenavnet):
 ```sql
 update public.profiles set role = 'admin' where lower(nickname) = lower('DIT-KALDENAVN');
 ```
 Det er den eneste gang, du skal bruge SQL. Resten klarer du i panelet.
 
-## Kun med invitation – sådan bliver man medlem
-GetTogether er et **lukket fællesskab**. Man bliver medlem, når et medlem sender en et link:
-- Medlemmer laver et link under **Profil → Inviter en ny** og sender det på SMS, WhatsApp osv. Hvert link kan bruges **én gang** og virker i **14 dage**. Et almindeligt medlem kan have 5 åbne links ad gangen.
-- Den, der får linket, ser "Du er inviteret af …" og opretter sin profil. Uden link står der "Kun for inviterede" – man kan også skrive koden fra linket.
-- I panelet kan du se, hvem der inviterede hvem (Medlemmer → personen), og slå kravet fra under **Indstillinger**, hvis du en dag vil åbne for alle.
+## Kun via fællesskabets link – sådan bliver man medlem
+GetTogether er et **lukket fællesskab** med **ét fælles link**. Alle, der har linket, kan blive medlem – og sende det videre til nye. Uden linket kan man ikke oprette sig.
+- Medlemmer finder linket under **Profil → Inviter en ny → Del linket** og sender det på SMS, WhatsApp osv.
+- Den, der åbner linket, ser "Velkommen! Du er kommet ind via fællesskabets link" og opretter sin profil. Uden link står der "Kun via fællesskabets link" – man kan også indsætte linket i feltet.
+- **Panelet → Indstillinger → Fællesskabets link:** kopiér linket, **lav et nyt** (det gamle holder straks op med at virke – fx hvis det er kommet ud til de forkerte), eller **åbn for alle**.
 - Siden er skjult for Google og andre søgemaskiner.
 
 **Som app på telefonen:** Fællesskabet viser selv, hvordan man lægger GetTogether på hjemmeskærmen – én knap på Android, og tre korte trin på iPhone (Del → Føj til hjemmeskærm → Tilføj). Så åbner den som en app uden App Store og Google Play. På iPhone skal man logge ind igen i appen med sit kaldenavn og sin kode.
+
+**Dit admin-app:** Åbn `din-side/faellesskab/panel/` på din telefon og læg det på hjemmeskærmen på samme måde. Så har du panelet som sin egen app.
 
 ## Trin 6 – Moderatorpanelet
 Adresse: **`https://DIN-SIDE.netlify.app/faellesskab/panel/`** – log ind med dit kaldenavn og din kode.
