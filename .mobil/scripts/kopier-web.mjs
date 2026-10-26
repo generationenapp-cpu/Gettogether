@@ -16,7 +16,7 @@ const SITE = String(PKG.gettogether.site || '').replace(/\/+$/, '');
 
 // Kun det appen skal bruge (panelet, databasen, Netlify- og Claude-filer kommer ikke med)
 const FILER = [
-  'index.html', 'manifest.webmanifest', 'song.mp3', 'lang',
+  'index.html', 'manifest.webmanifest', 'lang',
   'icon-192.png', 'icon-512.png', 'icon-maskable.png', 'apple-touch-icon.png',
   'faellesskab/index.html', 'faellesskab/app.js', 'faellesskab/app.css', 'faellesskab/config.js',
 ];

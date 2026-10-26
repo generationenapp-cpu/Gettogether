@@ -111,7 +111,7 @@ Mappen `.mobil` laver hjemmesiden om til en rigtig Android-app med Capacitor, so
 Den samme app kører også direkte i Claude (uden servere) – se `claude-version/README.md`. Dér logger man ind med sin Claude-konto, Claude tjekker profilerne, og ejeren af siden er administrator.
 
 ## Filer
-- `index.html`, `lang/`, `sw.js`, `song.mp3`, ikoner – guiden (Nur)
+- `index.html`, `lang/`, `sw.js`, ikoner – guiden (Nur)
 - `netlify/functions/count.mjs` – tælleren
 - `faellesskab/` – fællesskabet (`config.js` er det eneste, du skal rette)
 - `faellesskab/panel/` – moderatorpanelet

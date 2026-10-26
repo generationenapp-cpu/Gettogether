@@ -57,10 +57,6 @@ button{font-family:var(--body)}
 .top>#open-set{justify-self:end;grid-column:3;grid-row:1}
 .top>#player,.top>#more-music{grid-column:2;grid-row:1}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:16;background:var(--bg)}
-.player{justify-self:center;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px;max-width:200px;min-width:0}
-.player button{width:32px;height:32px;flex:none;border-radius:50%;border:0;background:var(--gold);color:var(--bg);display:grid;place-items:center;cursor:pointer}
-.player span{font-size:.78rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.player i{display:block;height:2px;background:var(--gold);width:0;border-radius:2px;position:absolute;left:14px;right:14px;bottom:2px}
 .counter{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;font-size:.78rem;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:4px 12px;background:color-mix(in srgb,var(--surface) 70%,transparent)}
 .counter b{color:var(--gold);font-variant-numeric:tabular-nums}
 .deep{border-top:1px dashed var(--line);padding-top:10px;white-space:pre-wrap;font-size:.95rem}
@@ -229,7 +225,7 @@ details.vid[open] summary::after{content:"–"}
 
 
 <div class="app">
-<div class="top"><button class="ghost" id="install" type="button" hidden style="justify-self:start;grid-column:1;grid-row:1" data-i="installBtn"></button><div class="player" id="player" hidden><button type="button" id="pl-btn" aria-label="Play"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path id="pl-ic" d="M3 1.5v11l9-5.5z" fill="currentColor"/></svg></button></div><button class="ghost" id="open-set" type="button" aria-haspopup="dialog">🌐 <span id="langname">Dansk</span></button></div>
+<div class="top"><button class="ghost" id="install" type="button" hidden style="justify-self:start;grid-column:1;grid-row:1" data-i="installBtn"></button><button class="ghost" id="open-set" type="button" aria-haspopup="dialog">🌐 <span id="langname">Dansk</span></button></div>
 
 <section class="view" id="v-hjem">
   <div class="hero">
@@ -369,13 +365,6 @@ details.vid[open] summary::after{content:"–"}
   <div class="rowbtn"><button class="ghost" id="deldata" type="button" data-i="delData"></button><span class="status" id="d-status"></span></div>
 </div></div>
 
-<div class="loader" id="welcome" hidden role="dialog" aria-modal="true" aria-labelledby="w-h"><div>
-  <div class="star" aria-hidden="true"><i></i><i></i><b></b></div>
-  <h3 id="w-h" data-i="welcomeH"></h3><p class="muted" data-i="welcomeTxt"></p>
-  <button class="gold" id="w-go" type="button" style="padding:14px 22px" data-i="welcomeBtn"></button>
-  <button class="ghost" id="w-skip" type="button" data-i="welcomeSkip"></button>
-</div></div>
-
 <div class="flow" id="flow" hidden role="dialog" aria-modal="true" aria-labelledby="f-title"><div>
   <div class="ftop"><button class="ghost" id="f-close" type="button" data-i="close"></button><div class="bar"><i id="f-prog"></i></div><span class="muted" id="f-count" style="font-size:.8rem;font-variant-numeric:tabular-nums"></span></div>
   <div id="f-start" class="fstep" style="text-align:start">
@@ -405,7 +394,6 @@ details.vid[open] summary::after{content:"–"}
   <h3 id="ld-title"></h3><div class="lbar" id="ld-bar"><i></i></div><p class="muted" id="ld-sub" style="font-size:.88rem"></p>
 </div></div>
 
-<audio id="song" preload="none" src="song.mp3"></audio>
 <script>
 const ls={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -1055,18 +1043,6 @@ const klar=(async()=>{try{sampleFn=window.claude&&window.claude.use?await window
   document.getElementById("keybox").hidden=!!sampleFn;noteAI()})();
 (async()=>{const want=lang;if(FILLANG.has(want)){if(!(await hentSprog(want)))lang="en"}
   else if(!(want==="da"||want==="en"||extra[want]))lang="en";applyLang();requestAnimationFrame(drawPattern)})();
-(()=>{const au=document.getElementById("song"),pl=document.getElementById("player"),ic=document.getElementById("pl-ic"),mm=null;
-  const play="M3 1.5v11l9-5.5z",pause="M3 1.5h3v11H3zM8 1.5h3v11H8z";
-  const brændt=()=>{pl.hidden=true};
-  if(ls.get("nur_song_done",false)){brændt();return}
-  fetch("song.mp3",{method:"HEAD"}).then(r=>{if(!r.ok)return;const w=document.getElementById("welcome");w.hidden=false;document.getElementById("w-go").focus()}).catch(()=>{});
-  document.getElementById("w-go").onclick=()=>{document.getElementById("welcome").hidden=true;pl.hidden=false;ls.set("nur_song_done",true);au.play().catch(()=>{})};
-  document.getElementById("w-skip").onclick=()=>{document.getElementById("welcome").hidden=true;ls.set("nur_song_done",true);brændt()};
-  document.getElementById("pl-btn").onclick=()=>{if(au.paused){au.play().catch(()=>{})}else au.pause()};
-  au.onplay=()=>{ic.setAttribute("d",pause);document.getElementById("pl-btn").setAttribute("aria-label","Pause")};
-  au.onpause=()=>{ic.setAttribute("d",play);document.getElementById("pl-btn").setAttribute("aria-label","Play")};
-  au.onended=()=>{brændt();au.removeAttribute("src");au.load()};
-  au.onerror=()=>{pl.hidden=true}})();
 
 /* ================= INSTALLÉR SOM APP ================= */
 (()=>{let evt=null;const btn=document.getElementById("install");
